@@ -1,0 +1,23 @@
+inherited frmPedidoItem_LgXhdpiTb: TfrmPedidoItem_LgXhdpiTb
+  ClientHeight = 829
+  ClientWidth = 480
+  DesignerMasterStyle = 3
+  inherited LayoutRoot: TLayout
+    Size.Width = 480.000000000000000000
+    Size.Height = 829.000000000000000000
+    inherited BackgroundRect: TRectangle
+      Size.Width = 480.000000000000000000
+      Size.Height = 829.000000000000000000
+      inherited lyRodape: TLayout
+        inherited Layout3: TLayout
+          inherited BtnCancelar: TRectangle
+            OnClick = nil
+          end
+        end
+      end
+    end
+    inherited TopBar: TRectangle
+      Size.Width = 480.000000000000000000
+    end
+  end
+end

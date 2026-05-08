@@ -1,0 +1,56 @@
+inherited frmLogin_NmXhdpiPh: TfrmLogin_NmXhdpiPh
+  ClientHeight = 615
+  ClientWidth = 400
+  DesignerMasterStyle = 3
+  inherited LayoutRoot: TLayout
+    Margins.Top = 50.000000000000000000
+    Size.Width = 400.000000000000000000
+    Size.Height = 565.000000000000000000
+    inherited BackgroundRect: TRectangle
+      Size.Width = 400.000000000000000000
+      Size.Height = 565.000000000000000000
+    end
+    inherited Card: TRectangle
+      inherited BtnEntrar: TRectangle
+        inherited LbBtnEntrar: TLabel
+          TextSettings.Font.StyleExt = {00070000000000000004000000}
+        end
+      end
+    end
+    inherited lbottom: TLayout
+      Position.Y = 443.000000000000000000
+      Size.Width = 390.000000000000000000
+      inherited lySaidas: TLayout
+        inherited rSaidas: TRectangle
+          inherited ImSaidas: TImage
+            MultiResBitmap.Height = 512
+            MultiResBitmap.Width = 512
+          end
+        end
+      end
+      inherited lySair: TLayout
+        Position.X = 333.000000000000000000
+        inherited rSair: TRectangle
+          inherited imSair: TImage
+            MultiResBitmap.Height = 512
+            MultiResBitmap.Width = 512
+          end
+        end
+      end
+    end
+    inherited TopBar: TRectangle
+      Size.Width = 400.000000000000000000
+      inherited Layout1: TLayout
+        Margins.Top = 25.000000000000000000
+        Size.Width = 400.000000000000000000
+        Size.Height = 105.000000000000000000
+        inherited Image1: TImage
+          MultiResBitmap.Height = 793
+          MultiResBitmap.Width = 1983
+          Size.Width = 400.000000000000000000
+          Size.Height = 105.000000000000000000
+        end
+      end
+    end
+  end
+end

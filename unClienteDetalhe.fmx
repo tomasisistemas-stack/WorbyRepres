@@ -1,0 +1,502 @@
+object frmClienteDetalhe: TfrmClienteDetalhe
+  Left = 0
+  Top = 0
+  Caption = 'Cliente'
+  ClientHeight = 640
+  ClientWidth = 360
+  FormFactor.Width = 360
+  FormFactor.Height = 640
+  FormFactor.Devices = [Desktop]
+  OnResize = FormResize
+  DesignerMasterStyle = 3
+  object BackgroundRect: TRectangle
+    Align = Contents
+    Fill.Color = xFFEEF7FF
+    Size.Width = 360.000000000000000000
+    Size.Height = 640.000000000000000000
+    Size.PlatformDefault = False
+    Stroke.Kind = None
+  end
+  object LayoutRoot: TLayout
+    Align = Client
+    Size.Width = 360.000000000000000000
+    Size.Height = 540.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 0
+    object TopBar: TRectangle
+      Align = Top
+      Fill.Color = xFF4A90E2
+      Size.Width = 360.000000000000000000
+      Size.Height = 96.000000000000000000
+      Size.PlatformDefault = False
+      Stroke.Kind = None
+      object LayoutTop: TLayout
+        Align = Client
+        Size.Width = 360.000000000000000000
+        Size.Height = 96.000000000000000000
+        Size.PlatformDefault = False
+        TabOrder = 0
+        object LbTitulo: TLabel
+          StyledSettings = []
+          Position.X = 18.000000000000000000
+          Position.Y = 53.000000000000000000
+          Size.Width = 360.000000000000000000
+          Size.Height = 32.000000000000000000
+          Size.PlatformDefault = False
+          TextSettings.Font.Size = 24.000000000000000000
+          TextSettings.FontColor = claWhite
+          Text = 'Cliente'
+          TabOrder = 0
+        end
+      end
+    end
+    object PresentedScrollBox1: TPresentedScrollBox
+      Align = Client
+      Size.Width = 360.000000000000000000
+      Size.Height = 444.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 0
+      Viewport.Width = 360.000000000000000000
+      Viewport.Height = 444.000000000000000000
+      object CardContato: TRectangle
+        Align = MostTop
+        Fill.Color = claWhite
+        Margins.Left = 10.000000000000000000
+        Margins.Top = 10.000000000000000000
+        Margins.Right = 10.000000000000000000
+        Margins.Bottom = 10.000000000000000000
+        Position.X = 10.000000000000000000
+        Position.Y = 125.000000000000000000
+        Size.Width = 340.000000000000000000
+        Size.Height = 92.000000000000000000
+        Size.PlatformDefault = False
+        Stroke.Kind = None
+        XRadius = 16.000000000000000000
+        YRadius = 16.000000000000000000
+        object LayoutContatoTitulo: TLayout
+          Align = Top
+          Margins.Left = 20.000000000000000000
+          Margins.Top = 10.000000000000000000
+          Margins.Right = 20.000000000000000000
+          Margins.Bottom = 10.000000000000000000
+          Position.X = 20.000000000000000000
+          Position.Y = 10.000000000000000000
+          Size.Width = 300.000000000000000000
+          Size.Height = 16.000000000000000000
+          Size.PlatformDefault = False
+          TabOrder = 0
+          object LbContatoTitulo: TLabel
+            Align = Client
+            StyledSettings = []
+            Size.Width = 300.000000000000000000
+            Size.Height = 16.000000000000000000
+            Size.PlatformDefault = False
+            TextSettings.Font.Size = 14.000000000000000000
+            TextSettings.FontColor = xFF1D2939
+            Text = 'Contato'
+          end
+        end
+        object LayoutTelefone: TLayout
+          Align = Top
+          Margins.Left = 20.000000000000000000
+          Margins.Right = 20.000000000000000000
+          Margins.Bottom = 10.000000000000000000
+          Position.X = 20.000000000000000000
+          Position.Y = 36.000000000000000000
+          Size.Width = 300.000000000000000000
+          Size.Height = 14.400001525878910000
+          Size.PlatformDefault = False
+          TabOrder = 1
+          object LbTelefone: TLabel
+            Align = Client
+            StyledSettings = []
+            Size.Width = 300.000000000000000000
+            Size.Height = 14.400001525878910000
+            Size.PlatformDefault = False
+            TextSettings.Font.Size = 13.000000000000000000
+            TextSettings.FontColor = xFF6B7280
+            Text = 'Telefone: (11) 99999-9999'
+          end
+        end
+        object LayoutEmail: TLayout
+          Align = Top
+          Margins.Left = 20.000000000000000000
+          Margins.Right = 20.000000000000000000
+          Position.X = 20.000000000000000000
+          Position.Y = 60.400001525878910000
+          Size.Width = 300.000000000000000000
+          Size.Height = 14.400001525878910000
+          Size.PlatformDefault = False
+          TabOrder = 2
+          object LbEmail: TLabel
+            Align = Client
+            StyledSettings = []
+            Size.Width = 300.000000000000000000
+            Size.Height = 14.400001525878910000
+            Size.PlatformDefault = False
+            TextSettings.Font.Size = 13.000000000000000000
+            TextSettings.FontColor = xFF6B7280
+            Text = 'Email: contato@mercado.com.br'
+          end
+        end
+      end
+      object CardEndereco: TRectangle
+        Align = MostTop
+        Fill.Color = claWhite
+        Margins.Left = 10.000000000000000000
+        Margins.Top = 10.000000000000000000
+        Margins.Right = 10.000000000000000000
+        Margins.Bottom = 10.000000000000000000
+        Position.X = 10.000000000000000000
+        Position.Y = 237.000000000000000000
+        Size.Width = 340.000000000000000000
+        Size.Height = 89.000000000000000000
+        Size.PlatformDefault = False
+        Stroke.Kind = None
+        XRadius = 16.000000000000000000
+        YRadius = 16.000000000000000000
+        object LayoutEndereco1: TLayout
+          Align = Top
+          Margins.Left = 20.000000000000000000
+          Margins.Right = 20.000000000000000000
+          Margins.Bottom = 10.000000000000000000
+          Position.X = 20.000000000000000000
+          Position.Y = 36.000000000000000000
+          Size.Width = 300.000000000000000000
+          Size.Height = 14.400001525878910000
+          Size.PlatformDefault = False
+          TabOrder = 1
+          object LbEndereco1: TLabel
+            Align = Client
+            StyledSettings = []
+            Size.Width = 300.000000000000000000
+            Size.Height = 14.399999618530270000
+            Size.PlatformDefault = False
+            TextSettings.Font.Size = 13.000000000000000000
+            TextSettings.FontColor = xFF6B7280
+            Text = 'Rua das Flores, 1200'
+          end
+        end
+        object LayoutEndereco2: TLayout
+          Align = Top
+          Margins.Left = 20.000000000000000000
+          Margins.Right = 20.000000000000000000
+          Margins.Bottom = 10.000000000000000000
+          Position.X = 20.000000000000000000
+          Position.Y = 60.400001525878910000
+          Size.Width = 300.000000000000000000
+          Size.Height = 14.400001525878910000
+          Size.PlatformDefault = False
+          TabOrder = 2
+          object LbEndereco2: TLabel
+            Align = Client
+            StyledSettings = []
+            Size.Width = 300.000000000000000000
+            Size.Height = 14.400001525878910000
+            Size.PlatformDefault = False
+            TextSettings.Font.Size = 13.000000000000000000
+            TextSettings.FontColor = xFF6B7280
+            Text = 'Bairro Centro  -  CEP 01000-000'
+          end
+        end
+        object LayoutEnderecoTitulo: TLayout
+          Align = Top
+          Margins.Left = 20.000000000000000000
+          Margins.Top = 10.000000000000000000
+          Margins.Right = 20.000000000000000000
+          Margins.Bottom = 10.000000000000000000
+          Position.X = 20.000000000000000000
+          Position.Y = 10.000000000000000000
+          Size.Width = 300.000000000000000000
+          Size.Height = 16.000000000000000000
+          Size.PlatformDefault = False
+          TabOrder = 0
+          object LbEnderecoTitulo: TLabel
+            Align = Client
+            StyledSettings = []
+            Size.Width = 300.000000000000000000
+            Size.Height = 16.000000000000000000
+            Size.PlatformDefault = False
+            TextSettings.Font.Size = 14.000000000000000000
+            TextSettings.FontColor = xFF1D2939
+            Text = 'Endereco'
+          end
+        end
+      end
+      object CardPerfil: TRectangle
+        Align = MostTop
+        Fill.Color = claWhite
+        Margins.Left = 10.000000000000000000
+        Margins.Top = 10.000000000000000000
+        Margins.Right = 10.000000000000000000
+        Margins.Bottom = 10.000000000000000000
+        Position.X = 10.000000000000000000
+        Position.Y = 10.000000000000000000
+        Size.Width = 340.000000000000000000
+        Size.Height = 95.000000000000000000
+        Size.PlatformDefault = False
+        Stroke.Kind = None
+        XRadius = 20.000000000000000000
+        YRadius = 20.000000000000000000
+        object Layout4: TLayout
+          Align = Top
+          Margins.Left = 20.000000000000000000
+          Margins.Top = 10.000000000000000000
+          Margins.Right = 20.000000000000000000
+          Position.X = 20.000000000000000000
+          Position.Y = 10.000000000000000000
+          Size.Width = 300.000000000000000000
+          Size.Height = 17.000000000000000000
+          Size.PlatformDefault = False
+          TabOrder = 2
+          object LbNome: TLabel
+            Align = Client
+            StyledSettings = []
+            Size.Width = 300.000000000000000000
+            Size.Height = 17.000000000000000000
+            Size.PlatformDefault = False
+            TextSettings.Font.Size = 15.000000000000000000
+            TextSettings.FontColor = xFF1D2939
+            TextSettings.WordWrap = False
+            Text = 'Mercado Central LTDA'
+            TabOrder = 0
+          end
+        end
+        object Layout5: TLayout
+          Align = Top
+          Margins.Left = 20.000000000000000000
+          Margins.Top = 10.000000000000000000
+          Margins.Right = 20.000000000000000000
+          Position.X = 20.000000000000000000
+          Position.Y = 37.000000000000000000
+          Size.Width = 300.000000000000000000
+          Size.Height = 17.000000000000000000
+          Size.PlatformDefault = False
+          TabOrder = 1
+          object LbDoc: TLabel
+            Align = Left
+            StyledSettings = []
+            Size.Width = 120.000000000000000000
+            Size.Height = 17.000000000000000000
+            Size.PlatformDefault = False
+            TextSettings.Font.Size = 13.000000000000000000
+            TextSettings.FontColor = xFF6B7280
+            Text = 'Codigo 80'
+            TabOrder = 0
+          end
+          object LbDocDireita: TLabel
+            Align = Client
+            StyledSettings = []
+            Margins.Left = 8.000000000000000000
+            Size.Width = 172.000000000000000000
+            Size.Height = 17.000000000000000000
+            Size.PlatformDefault = False
+            TextSettings.Font.Size = 13.000000000000000000
+            TextSettings.FontColor = xFF6B7280
+            TextSettings.HorzAlign = Trailing
+            Text = 'CNPJ 12.345.678/0001-99'
+            TabOrder = 1
+          end
+        end
+        object Layout6: TLayout
+          Align = Top
+          Margins.Left = 20.000000000000000000
+          Margins.Top = 10.000000000000000000
+          Margins.Right = 20.000000000000000000
+          Position.X = 20.000000000000000000
+          Position.Y = 64.000000000000000000
+          Size.Width = 300.000000000000000000
+          Size.Height = 17.000000000000000000
+          Size.PlatformDefault = False
+          TabOrder = 0
+          object LbCidade: TLabel
+            Align = Client
+            StyledSettings = []
+            Size.Width = 300.000000000000000000
+            Size.Height = 17.000000000000000000
+            Size.PlatformDefault = False
+            TextSettings.Font.Size = 13.000000000000000000
+            TextSettings.FontColor = xFF6B7280
+            Text = 'Cidade: Sao Paulo  -  UF: SP'
+            TabOrder = 0
+          end
+        end
+      end
+      object CardSituacao: TRectangle
+        Align = MostTop
+        Fill.Color = claWhite
+        Margins.Left = 10.000000000000000000
+        Margins.Top = 10.000000000000000000
+        Margins.Right = 10.000000000000000000
+        Margins.Bottom = 10.000000000000000000
+        Position.X = 10.000000000000000000
+        Position.Y = 346.000000000000000000
+        Size.Width = 340.000000000000000000
+        Size.Height = 80.000000000000000000
+        Size.PlatformDefault = False
+        Stroke.Kind = None
+        XRadius = 16.000000000000000000
+        YRadius = 16.000000000000000000
+        object LayoutLimite: TLayout
+          Align = Top
+          Margins.Left = 20.000000000000000000
+          Margins.Right = 20.000000000000000000
+          Margins.Bottom = 10.000000000000000000
+          Position.X = 20.000000000000000000
+          Position.Y = 36.000000000000000000
+          Size.Width = 300.000000000000000000
+          Size.Height = 15.000000000000000000
+          Size.PlatformDefault = False
+          TabOrder = 1
+          object LbLimite: TLabel
+            Align = Client
+            StyledSettings = []
+            Size.Width = 300.000000000000000000
+            Size.Height = 15.000000000000000000
+            Size.PlatformDefault = False
+            TextSettings.Font.Size = 13.000000000000000000
+            TextSettings.FontColor = xFF6B7280
+            Text = 'Limite: R$ 15.000.00'
+          end
+        end
+        object LayoutSaldo: TLayout
+          Align = Top
+          Margins.Left = 20.000000000000000000
+          Margins.Right = 20.000000000000000000
+          Margins.Bottom = 10.000000000000000000
+          Position.X = 20.000000000000000000
+          Position.Y = 61.000000000000000000
+          Size.Width = 300.000000000000000000
+          Size.Height = 14.000000000000000000
+          Size.PlatformDefault = False
+          TabOrder = 2
+          object LbSaldo: TLabel
+            Align = Client
+            StyledSettings = []
+            Size.Width = 300.000000000000000000
+            Size.Height = 14.000000000000000000
+            Size.PlatformDefault = False
+            TextSettings.Font.Size = 13.000000000000000000
+            TextSettings.FontColor = xFF6B7280
+            Text = 'Saldo: R$ 3.250.00  -  Status: Ativo'
+          end
+        end
+        object LayoutSituacaoTitulo: TLayout
+          Align = Top
+          Margins.Left = 20.000000000000000000
+          Margins.Top = 10.000000000000000000
+          Margins.Right = 20.000000000000000000
+          Margins.Bottom = 10.000000000000000000
+          Position.X = 20.000000000000000000
+          Position.Y = 10.000000000000000000
+          Size.Width = 300.000000000000000000
+          Size.Height = 16.000000000000000000
+          Size.PlatformDefault = False
+          TabOrder = 0
+          object LbSituacaoTitulo: TLabel
+            Align = Client
+            StyledSettings = []
+            Size.Width = 300.000000000000000000
+            Size.Height = 16.000000000000000000
+            Size.PlatformDefault = False
+            TextSettings.Font.Size = 14.000000000000000000
+            TextSettings.FontColor = xFF1D2939
+            Text = 'Situacao'
+          end
+        end
+      end
+    end
+  end
+  object layout1: TLayout
+    Align = Bottom
+    Margins.Bottom = 50.000000000000000000
+    Position.Y = 540.000000000000000000
+    Size.Width = 360.000000000000000000
+    Size.Height = 50.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 1
+    object Layout2: TLayout
+      Align = MostRight
+      Margins.Left = 20.000000000000000000
+      Position.X = 180.000000000000000000
+      Size.Width = 180.000000000000000000
+      Size.Height = 50.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 0
+      object BtnPedido: TRectangle
+        Align = Client
+        Fill.Color = xFF4A90E2
+        Margins.Left = 25.000000000000000000
+        Margins.Top = 5.000000000000000000
+        Margins.Right = 25.000000000000000000
+        Margins.Bottom = 5.000000000000000000
+        Size.Width = 130.000000000000000000
+        Size.Height = 40.000000000000000000
+        Size.PlatformDefault = False
+        Stroke.Kind = None
+        XRadius = 16.000000000000000000
+        YRadius = 16.000000000000000000
+        OnClick = BtnPedidoClick
+        object LayoutPedido: TLayout
+          Align = Client
+          Size.Width = 130.000000000000000000
+          Size.Height = 40.000000000000000000
+          Size.PlatformDefault = False
+          TabOrder = 0
+          object LbPedido: TLabel
+            Align = Center
+            StyledSettings = []
+            Size.Width = 123.000000000000000000
+            Size.Height = 35.000000000000000000
+            Size.PlatformDefault = False
+            TextSettings.Font.Size = 14.000000000000000000
+            TextSettings.FontColor = claWhite
+            TextSettings.HorzAlign = Center
+            Text = 'Pedido'
+          end
+        end
+      end
+    end
+    object Layout3: TLayout
+      Align = MostLeft
+      Margins.Right = 20.000000000000000000
+      Size.Width = 180.000000000000000000
+      Size.Height = 50.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 1
+      object BtnCancelar: TRectangle
+        Align = Client
+        Fill.Color = xFFDFECFA
+        Margins.Left = 25.000000000000000000
+        Margins.Top = 5.000000000000000000
+        Margins.Right = 25.000000000000000000
+        Margins.Bottom = 5.000000000000000000
+        Size.Width = 130.000000000000000000
+        Size.Height = 40.000000000000000000
+        Size.PlatformDefault = False
+        Stroke.Kind = None
+        XRadius = 16.000000000000000000
+        YRadius = 16.000000000000000000
+        OnClick = BtnCancelarClick
+        object LayoutCancelar: TLayout
+          Align = Client
+          Size.Width = 130.000000000000000000
+          Size.Height = 40.000000000000000000
+          Size.PlatformDefault = False
+          TabOrder = 0
+          object LbCancelar: TLabel
+            Align = Center
+            StyledSettings = []
+            Size.Width = 188.000000000000000000
+            Size.Height = 35.000000000000000000
+            Size.PlatformDefault = False
+            TextSettings.Font.Size = 14.000000000000000000
+            TextSettings.FontColor = xFF2860AA
+            TextSettings.HorzAlign = Center
+            Text = 'Cancelar'
+          end
+        end
+      end
+    end
+  end
+end

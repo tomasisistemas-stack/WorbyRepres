@@ -1,0 +1,31 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TfrxReport Version="3.21" DotMatrixReport="False" IniFile="\Software\Fast Reports" PreviewOptions.Buttons="4095" PreviewOptions.Zoom="1" PrintOptions.Printer="Default" ReportOptions.CreateDate="45775,4" ReportOptions.LastChange="45775,4" ScriptLanguage="PascalScript" ScriptText.Text="begin&#13;&#10;&#13;&#10;end.">
+  <TfrxReportPage Name="Page1" PaperWidth="210" PaperHeight="297" PaperSize="9" LeftMargin="10" RightMargin="10" TopMargin="10" BottomMargin="10" ColumnPositions.Text="0">
+    <TfrxReportTitle Name="ReportTitle1" Height="64" Left="0" Top="18,9" Width="718,11">
+      <TfrxMemoView Name="M1" Left="0" Top="0" Width="718" Height="16" Text="[V_FORNECEDOR]"/>
+      <TfrxMemoView Name="M2" Left="0" Top="16" Width="718" Height="16" Text="[V_REPRESENTANTE]"/>
+      <TfrxMemoView Name="M3" Left="0" Top="32" Width="718" Height="16" Text="[V_CLIENTE]"/>
+      <TfrxMemoView Name="M4" Left="0" Top="48" Width="718" Height="16" Text="[V_CABECALHO]"/>
+    </TfrxReportTitle>
+    <TfrxMasterData Name="MasterData1" Top="86" Width="718,11" Height="18" DataSet="DBItens" DataSetName="DBItens">
+      <TfrxMemoView Name="I1" Left="0" Top="0" Width="60" Height="18" Text="[<cod_produto>]"/>
+      <TfrxMemoView Name="I2" Left="64" Top="0" Width="360" Height="18" Text="[<nom_produto>]"/>
+      <TfrxMemoView Name="I3" Left="430" Top="0" Width="50" Height="18" HAlign="haCenter" Text="[<un>]"/>
+      <TfrxMemoView Name="I4" Left="486" Top="0" Width="50" Height="18" HAlign="haRight" Text="[<qtde>]"/>
+      <TfrxMemoView Name="I5" Left="542" Top="0" Width="80" Height="18" HAlign="haRight" Text="[<preco>]"/>
+      <TfrxMemoView Name="I6" Left="628" Top="0" Width="90" Height="18" HAlign="haRight" Text="[<total>]"/>
+    </TfrxMasterData>
+    <TfrxPageFooter Name="PageFooter1" Top="110" Width="718,11" Height="20">
+      <TfrxMemoView Name="F1" Left="0" Top="2" Width="520" Height="16" Text="[V_CONDICAO]"/>
+      <TfrxMemoView Name="F2" Left="540" Top="2" Width="178" Height="16" HAlign="haRight" Text="[V_TOTAL]"/>
+    </TfrxPageFooter>
+    
+  </TfrxReportPage>
+</TfrxReport>
+
+
+
+
+
+
+

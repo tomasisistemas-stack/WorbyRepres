@@ -1,0 +1,43 @@
+inherited frmSync_LgXhdpiTb: TfrmSync_LgXhdpiTb
+  ClientHeight = 829
+  ClientWidth = 480
+  DesignerMasterStyle = 3
+  inherited LayoutRoot: TLayout
+    Size.Width = 480.000000000000000000
+    Size.Height = 829.000000000000000000
+    inherited BackgroundRect: TRectangle
+      Size.Width = 480.000000000000000000
+      Size.Height = 829.000000000000000000
+      inherited LayoutRod: TLayout
+        Margins.Left = 90.000000000000000000
+        Margins.Right = 90.000000000000000000
+        Position.X = 90.000000000000000000
+        Position.Y = 659.000000000000000000
+        Size.Width = 300.000000000000000000
+        inherited BtnSync: TRectangle
+          Align = Center
+          Margins.Left = 100.000000000000000000
+          Margins.Right = 100.000000000000000000
+          Size.Width = 300.000000000000000000
+          inherited LbBtnSync: TLabel
+            Size.Width = 300.000000000000000000
+            TextSettings.Font.StyleExt = {00070000000000000004000000}
+          end
+        end
+      end
+      inherited lbottom: TLayout
+        Position.Y = 707.000000000000000000
+        Size.Width = 470.000000000000000000
+        inherited LyVoltar: TLayout
+          inherited ImgVoltar: TImage
+            MultiResBitmap.Height = 512
+            MultiResBitmap.Width = 512
+          end
+        end
+      end
+      inherited TopBar: TRectangle
+        Size.Width = 480.000000000000000000
+      end
+    end
+  end
+end

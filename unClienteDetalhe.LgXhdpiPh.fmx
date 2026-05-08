@@ -1,0 +1,87 @@
+inherited frmClienteDetalhe_LgXhdpiPh: TfrmClienteDetalhe_LgXhdpiPh
+  ClientHeight = 695
+  ClientWidth = 450
+  DesignerMasterStyle = 3
+  inherited BackgroundRect: TRectangle
+    Size.Width = 450.000000000000000000
+    Size.Height = 695.000000000000000000
+  end
+  inherited LayoutRoot: TLayout
+    Size.Width = 450.000000000000000000
+    Size.Height = 595.000000000000000000
+    inherited TopBar: TRectangle
+      Size.Width = 450.000000000000000000
+      inherited LayoutTop: TLayout
+        Size.Width = 450.000000000000000000
+      end
+    end
+    inherited PresentedScrollBox1: TPresentedScrollBox
+      Size.Width = 450.000000000000000000
+      Size.Height = 499.000000000000000000
+      Viewport.Width = 450.000000000000000000
+      Viewport.Height = 499.000000000000000000
+      inherited CardContato: TRectangle
+        Size.Width = 30.000000000000000000
+        inherited LayoutContatoTitulo: TLayout
+          Size.Width = 0.000000000000000000
+        end
+        inherited LayoutTelefone: TLayout
+          Size.Width = 0.000000000000000000
+        end
+        inherited LayoutEmail: TLayout
+          Size.Width = 0.000000000000000000
+        end
+      end
+      inherited CardEndereco: TRectangle
+        Size.Width = 30.000000000000000000
+        inherited LayoutEndereco1: TLayout
+          Size.Width = 0.000000000000000000
+        end
+        inherited LayoutEndereco2: TLayout
+          Size.Width = 0.000000000000000000
+        end
+        inherited LayoutEnderecoTitulo: TLayout
+          Size.Width = 0.000000000000000000
+        end
+      end
+      inherited CardPerfil: TRectangle
+        Size.Width = 30.000000000000000000
+        inherited Layout4: TLayout
+          Size.Width = 0.000000000000000000
+        end
+        inherited Layout5: TLayout
+          Size.Width = 0.000000000000000000
+        end
+        inherited Layout6: TLayout
+          Size.Width = 0.000000000000000000
+        end
+      end
+      inherited CardSituacao: TRectangle
+        Size.Width = 30.000000000000000000
+        inherited LayoutLimite: TLayout
+          Size.Width = 0.000000000000000000
+        end
+        inherited LayoutSaldo: TLayout
+          Size.Width = 0.000000000000000000
+        end
+        inherited LayoutSituacaoTitulo: TLayout
+          Size.Width = 0.000000000000000000
+        end
+      end
+    end
+  end
+  inherited layout1: TLayout
+    Position.Y = 595.000000000000000000
+    Size.Width = 450.000000000000000000
+    inherited Layout2: TLayout
+      Position.X = 270.000000000000000000
+      inherited BtnPedido: TRectangle
+        inherited LayoutPedido: TLayout
+          Margins.Left = 25.000000000000000000
+          Margins.Right = 25.000000000000000000
+          Size.Width = 80.000000000000000000
+        end
+      end
+    end
+  end
+end

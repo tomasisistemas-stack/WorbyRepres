@@ -1,0 +1,342 @@
+object frmPedidoItem: TfrmPedidoItem
+  Left = 0
+  Top = 0
+  Caption = 'Item'
+  ClientHeight = 640
+  ClientWidth = 360
+  FormFactor.Width = 360
+  FormFactor.Height = 640
+  FormFactor.Devices = [Desktop]
+  DesignerMasterStyle = 3
+  object LayoutRoot: TLayout
+    Align = Contents
+    Size.Width = 360.000000000000000000
+    Size.Height = 640.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 0
+    object BackgroundRect: TRectangle
+      Align = Contents
+      Fill.Color = xFFEEF7FF
+      Size.Width = 360.000000000000000000
+      Size.Height = 640.000000000000000000
+      Size.PlatformDefault = False
+      Stroke.Kind = None
+      object lyRodape: TLayout
+        Align = Bottom
+        Margins.Bottom = 50.000000000000000000
+        Position.Y = 540.000000000000000000
+        Size.Width = 360.000000000000000000
+        Size.Height = 50.000000000000000000
+        Size.PlatformDefault = False
+        TabOrder = 0
+        object Layout2: TLayout
+          Align = MostLeft
+          Margins.Left = 20.000000000000000000
+          Position.X = 20.000000000000000000
+          Size.Width = 180.000000000000000000
+          Size.Height = 50.000000000000000000
+          Size.PlatformDefault = False
+          TabOrder = 0
+          object BtnAdicionar: TRectangle
+            Align = Client
+            Fill.Color = xFF4A90E2
+            Margins.Left = 25.000000000000000000
+            Margins.Top = 5.000000000000000000
+            Margins.Right = 25.000000000000000000
+            Margins.Bottom = 5.000000000000000000
+            Size.Width = 130.000000000000000000
+            Size.Height = 40.000000000000000000
+            Size.PlatformDefault = False
+            Stroke.Kind = None
+            XRadius = 16.000000000000000000
+            YRadius = 16.000000000000000000
+            object LayoutPedido: TLayout
+              Align = Client
+              Size.Width = 130.000000000000000000
+              Size.Height = 40.000000000000000000
+              Size.PlatformDefault = False
+              TabOrder = 0
+              object LbAdicionar: TLabel
+                Align = Center
+                StyledSettings = []
+                Size.Width = 123.000000000000000000
+                Size.Height = 35.000000000000000000
+                Size.PlatformDefault = False
+                TextSettings.Font.Size = 14.000000000000000000
+                TextSettings.FontColor = claWhite
+                TextSettings.HorzAlign = Center
+                Text = 'Adicionar'
+              end
+            end
+          end
+        end
+        object Layout3: TLayout
+          Align = MostRight
+          Margins.Right = 20.000000000000000000
+          Position.X = 160.000000000000000000
+          Size.Width = 180.000000000000000000
+          Size.Height = 50.000000000000000000
+          Size.PlatformDefault = False
+          TabOrder = 1
+          object BtnCancelar: TRectangle
+            Align = Client
+            Fill.Color = xFFDFECFA
+            Margins.Left = 25.000000000000000000
+            Margins.Top = 5.000000000000000000
+            Margins.Right = 25.000000000000000000
+            Margins.Bottom = 5.000000000000000000
+            Size.Width = 130.000000000000000000
+            Size.Height = 40.000000000000000000
+            Size.PlatformDefault = False
+            Stroke.Kind = None
+            XRadius = 16.000000000000000000
+            YRadius = 16.000000000000000000
+            object LayoutCancelar: TLayout
+              Align = Client
+              Size.Width = 130.000000000000000000
+              Size.Height = 40.000000000000000000
+              Size.PlatformDefault = False
+              TabOrder = 0
+              object LbCancelar: TLabel
+                Align = Center
+                StyledSettings = []
+                Size.Width = 188.000000000000000000
+                Size.Height = 35.000000000000000000
+                Size.PlatformDefault = False
+                TextSettings.Font.Size = 14.000000000000000000
+                TextSettings.FontColor = xFF2860AA
+                TextSettings.HorzAlign = Center
+                Text = 'Cancelar'
+              end
+            end
+          end
+        end
+      end
+    end
+    object TopBar: TRectangle
+      Align = Top
+      Fill.Color = xFF4A90E2
+      Size.Width = 360.000000000000000000
+      Size.Height = 96.000000000000000000
+      Size.PlatformDefault = False
+      Stroke.Kind = None
+      object LbTitulo: TLabel
+        StyledSettings = []
+        Position.X = 20.000000000000000000
+        Position.Y = 59.000000000000000000
+        Size.Width = 195.000000000000000000
+        Size.Height = 28.799999237060550000
+        Size.PlatformDefault = False
+        TextSettings.Font.Size = 24.000000000000000000
+        TextSettings.FontColor = claWhite
+        Text = 'Item do Pedido'
+      end
+    end
+    object CardProduto: TRectangle
+      Fill.Color = claWhite
+      Position.X = 28.000000000000000000
+      Position.Y = 104.000000000000000000
+      Size.Width = 324.000000000000000000
+      Size.Height = 146.000000000000000000
+      Size.PlatformDefault = False
+      Stroke.Kind = None
+      XRadius = 20.000000000000000000
+      YRadius = 20.000000000000000000
+      object ThumbProduto: TRectangle
+        Fill.Color = claAliceblue
+        Position.X = 8.000000000000000000
+        Position.Y = 8.000000000000000000
+        Size.Width = 115.000000000000000000
+        Size.Height = 92.000000000000000000
+        Size.PlatformDefault = False
+        Stroke.Color = xFFD2E3F7
+        XRadius = 12.000000000000000000
+        YRadius = 12.000000000000000000
+      end
+      object LbProdNome: TLabel
+        StyledSettings = []
+        Position.X = 131.000000000000000000
+        Position.Y = 11.000000000000000000
+        Size.Width = 180.000000000000000000
+        Size.Height = 89.000000000000000000
+        Size.PlatformDefault = False
+        TextSettings.Font.Size = 14.000000000000000000
+        TextSettings.FontColor = xFF1D2939
+        TextSettings.HorzAlign = Center
+        Text = 'Produto A'
+      end
+      object LbProdCodigo: TLabel
+        StyledSettings = []
+        Position.X = 8.000000000000000000
+        Position.Y = 103.000000000000000000
+        Size.Width = 122.000000000000000000
+        Size.Height = 17.000000000000000000
+        Size.PlatformDefault = False
+        TextSettings.Font.Size = 13.000000000000000000
+        TextSettings.FontColor = xFF6B7280
+        Text = 'C'#243'digo: 1001'
+      end
+      object LbProdEstoque: TLabel
+        StyledSettings = []
+        Position.X = 138.000000000000000000
+        Position.Y = 103.000000000000000000
+        Size.Width = 178.000000000000000000
+        Size.Height = 17.000000000000000000
+        Size.PlatformDefault = False
+        TextSettings.Font.Size = 13.000000000000000000
+        TextSettings.FontColor = xFF6B7280
+        TextSettings.HorzAlign = Trailing
+        Text = 'Estoque: 45 un'
+      end
+      object lbDescontoMax: TLabel
+        StyledSettings = []
+        Position.X = 8.000000000000000000
+        Position.Y = 120.000000000000000000
+        Size.Width = 190.000000000000000000
+        Size.Height = 16.000000000000000000
+        Size.PlatformDefault = False
+        TextSettings.Font.Size = 13.000000000000000000
+        TextSettings.FontColor = xFF6B7280
+        Text = 'Desconto M'#225'x.: 0%'
+        TabOrder = 0
+      end
+      object lbValorMin: TLabel
+        StyledSettings = []
+        Position.X = 126.000000000000000000
+        Position.Y = 122.000000000000000000
+        Size.Width = 190.000000000000000000
+        Size.Height = 16.000000000000000000
+        Size.PlatformDefault = False
+        TextSettings.Font.Size = 13.000000000000000000
+        TextSettings.FontColor = xFF6B7280
+        TextSettings.HorzAlign = Trailing
+        Text = 'Valor Min.: R$ 0,00'
+        TabOrder = 1
+      end
+    end
+    object CardPreco: TRectangle
+      Fill.Color = claWhite
+      Position.X = 28.000000000000000000
+      Position.Y = 288.000000000000000000
+      Size.Width = 324.000000000000000000
+      Size.Height = 77.000000000000000000
+      Size.PlatformDefault = False
+      Stroke.Kind = None
+      XRadius = 16.000000000000000000
+      YRadius = 16.000000000000000000
+      object LbPrecoTitulo: TLabel
+        StyledSettings = []
+        Position.X = 21.000000000000000000
+        Position.Y = 14.000000000000000000
+        Size.Width = 95.000000000000000000
+        Size.Height = 16.000000000000000000
+        Size.PlatformDefault = False
+        TextSettings.Font.Size = 14.000000000000000000
+        TextSettings.FontColor = xFF6B7280
+        Text = 'Pre'#231'o Unit'#225'rio'
+      end
+      object EdPreco: TEdit
+        Touch.InteractiveGestures = [LongTap, DoubleTap]
+        Text = '24.00'
+        Position.X = 18.000000000000000000
+        Position.Y = 37.000000000000000000
+        Size.Width = 95.000000000000000000
+        Size.Height = 32.000000000000000000
+        Size.PlatformDefault = False
+        OnExit = EdPrecoExit
+      end
+      object LbDescTitulo: TLabel
+        StyledSettings = []
+        Position.X = 124.000000000000000000
+        Position.Y = 14.000000000000000000
+        Size.Width = 84.000000000000000000
+        Size.Height = 16.000000000000000000
+        Size.PlatformDefault = False
+        TextSettings.Font.Size = 14.000000000000000000
+        TextSettings.FontColor = xFF6B7280
+        Text = '% Desconto'
+      end
+      object EdDescPct: TEdit
+        Touch.InteractiveGestures = [LongTap, DoubleTap]
+        Text = '0'
+        Position.X = 121.000000000000000000
+        Position.Y = 38.000000000000000000
+        Size.Width = 86.000000000000000000
+        Size.Height = 32.000000000000000000
+        Size.PlatformDefault = False
+        OnExit = EdDescPctExit
+      end
+      object LbQtdTitulo: TLabel
+        StyledSettings = []
+        Position.X = 213.000000000000000000
+        Position.Y = 14.000000000000000000
+        Size.Width = 78.000000000000000000
+        Size.Height = 16.000000000000000000
+        Size.PlatformDefault = False
+        TextSettings.Font.Size = 14.000000000000000000
+        TextSettings.FontColor = xFF6B7280
+        Text = 'Quantidade'
+        TabOrder = 0
+      end
+      object EdQtd: TEdit
+        Touch.InteractiveGestures = [LongTap, DoubleTap]
+        TabOrder = 1
+        Text = '2'
+        Position.X = 215.000000000000000000
+        Position.Y = 38.000000000000000000
+        Size.Width = 70.000000000000000000
+        Size.Height = 32.000000000000000000
+        Size.PlatformDefault = False
+        OnExit = EdQtdExit
+      end
+      object LbQtdUn: TLabel
+        StyledSettings = []
+        Position.X = 291.000000000000000000
+        Position.Y = 46.000000000000000000
+        Size.Width = 30.000000000000000000
+        Size.Height = 16.000000000000000000
+        Size.PlatformDefault = False
+        TextSettings.Font.Size = 13.000000000000000000
+        TextSettings.FontColor = xFF6B7280
+        Text = 'un'
+        TabOrder = 2
+      end
+    end
+    object CardTotal: TRectangle
+      Fill.Color = claWhite
+      Position.X = 28.000000000000000000
+      Position.Y = 416.000000000000000000
+      Size.Width = 324.000000000000000000
+      Size.Height = 75.000000000000000000
+      Size.PlatformDefault = False
+      Stroke.Kind = None
+      XRadius = 16.000000000000000000
+      YRadius = 16.000000000000000000
+      object LbTotalTitulo: TLabel
+        StyledSettings = []
+        Position.X = 18.000000000000000000
+        Position.Y = 8.000000000000000000
+        Size.Width = 275.000000000000000000
+        Size.Height = 16.000000000000000000
+        Size.PlatformDefault = False
+        TextSettings.Font.Size = 14.000000000000000000
+        TextSettings.FontColor = xFF6B7280
+        TextSettings.HorzAlign = Trailing
+        Text = 'Total do item'
+      end
+      object LbTotalValor: TLabel
+        AutoSize = True
+        StyledSettings = []
+        Position.X = 20.000000000000000000
+        Position.Y = 32.000000000000000000
+        Size.Width = 275.000000000000000000
+        Size.Height = 40.000000000000000000
+        Size.PlatformDefault = False
+        TextSettings.Font.Size = 30.000000000000000000
+        TextSettings.FontColor = xFF1D2939
+        TextSettings.HorzAlign = Trailing
+        Text = 'R$ 48.00'
+      end
+    end
+  end
+end

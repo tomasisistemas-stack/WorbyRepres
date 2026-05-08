@@ -1,0 +1,62 @@
+inherited frmClienteDetalhe_LgXhdpiTb: TfrmClienteDetalhe_LgXhdpiTb
+  ClientHeight = 829
+  ClientWidth = 480
+  DesignerMasterStyle = 3
+  inherited LayoutRoot: TLayout
+    Size.Width = 480.000000000000000000
+    Size.Height = 829.000000000000000000
+    inherited BackgroundRect: TRectangle
+      Size.Width = 480.000000000000000000
+      Size.Height = 829.000000000000000000
+    end
+    inherited TopBar: TRectangle
+      Size.Width = 480.000000000000000000
+    end
+    inherited PresentedScrollBox1: TPresentedScrollBox
+      Size.Width = 480.000000000000000000
+      Size.Height = 733.000000000000000000
+      Viewport.Width = 480.000000000000000000
+      Viewport.Height = 733.000000000000000000
+      inherited CardContato: TRectangle
+        Size.Width = 460.000000000000000000
+      end
+      inherited CardEndereco: TRectangle
+        Size.Width = 460.000000000000000000
+      end
+      inherited CardPerfil: TRectangle
+        Size.Width = 460.000000000000000000
+        inherited Layout4: TLayout
+          Size.Width = 420.000000000000000000
+          inherited LbNome: TLabel
+            Margins.Left = 20.000000000000000000
+            Margins.Top = 20.000000000000000000
+            Size.Width = 400.000000000000000000
+            Size.Height = 17.000000000000000000
+          end
+        end
+        inherited Layout5: TLayout
+          Size.Width = 420.000000000000000000
+          inherited LbDoc: TLabel
+            Size.Width = 420.000000000000000000
+          end
+        end
+        inherited Layout6: TLayout
+          Size.Width = 420.000000000000000000
+          inherited LbCidade: TLabel
+            Size.Width = 420.000000000000000000
+          end
+        end
+      end
+      inherited CardSituacao: TRectangle
+        Size.Width = 460.000000000000000000
+      end
+    end
+  end
+  inherited Layout1: TLayout
+    Position.Y = 749.000000000000000000
+    Size.Width = 480.000000000000000000
+    inherited Layout3: TLayout
+      Position.X = 300.000000000000000000
+    end
+  end
+end

@@ -1,0 +1,57 @@
+inherited frmLogin_LgXhdpiTb: TfrmLogin_LgXhdpiTb
+  ClientHeight = 829
+  ClientWidth = 480
+  DesignerMasterStyle = 3
+  inherited LayoutRoot: TLayout
+    Margins.Top = 50.000000000000000000
+    Size.Width = 480.000000000000000000
+    Size.Height = 779.000000000000000000
+    inherited BackgroundRect: TRectangle
+      Size.Width = 480.000000000000000000
+      Size.Height = 779.000000000000000000
+    end
+    inherited Card: TRectangle
+      Size.Height = 320.000000000000000000
+      inherited BtnEntrar: TRectangle
+        inherited LbBtnEntrar: TLabel
+          TextSettings.Font.StyleExt = {00070000000000000004000000}
+        end
+      end
+    end
+    inherited lbottom: TLayout
+      Position.Y = 657.000000000000000000
+      Size.Width = 470.000000000000000000
+      inherited lySaidas: TLayout
+        inherited rSaidas: TRectangle
+          inherited ImSaidas: TImage
+            MultiResBitmap.Height = 512
+            MultiResBitmap.Width = 512
+          end
+        end
+      end
+      inherited lySair: TLayout
+        Position.X = 413.000000000000000000
+        inherited rSair: TRectangle
+          inherited imSair: TImage
+            MultiResBitmap.Height = 512
+            MultiResBitmap.Width = 512
+          end
+        end
+      end
+    end
+    inherited TopBar: TRectangle
+      Size.Width = 480.000000000000000000
+      inherited Layout1: TLayout
+        Margins.Top = 25.000000000000000000
+        Size.Width = 480.000000000000000000
+        Size.Height = 105.000000000000000000
+        inherited Image1: TImage
+          MultiResBitmap.Height = 793
+          MultiResBitmap.Width = 1983
+          Size.Width = 480.000000000000000000
+          Size.Height = 105.000000000000000000
+        end
+      end
+    end
+  end
+end
