@@ -92,7 +92,7 @@ begin
   LValor := Trim(ARotuloOuUrl);
   if SameText(LValor, 'PLASFAN') then
     Exit('http://plasfan.ddns.com.br:9000');
-  if SameText(LValor, 'FILHO DO CRIADO') then
+  if SameText(LValor, 'FILHO DO CRIADOR') then
     Exit('http://plasfan.ddns.com.br:9004');
   Result := LValor;
 end;
@@ -105,7 +105,7 @@ begin
   if SameText(LUrl, 'http://plasfan.ddns.com.br:9000') then
     Exit('PLASFAN');
   if SameText(LUrl, 'http://plasfan.ddns.com.br:9004') then
-    Exit('FILHO DO CRIADO');
+    Exit('FILHO DO CRIADOR');
   Result := LUrl;
 end;
 
@@ -129,6 +129,8 @@ begin
     Exit;
   end;
 
+  dmApp.ApiBaseUrl := Trim(BaseUrlSelecionada);
+
   LSenha := Trim(EdSenha.Text);
   LSenhaSalva := Trim(GetSavedPassword);
   if (LSenha = '') and (LSenhaSalva <> '') then
@@ -145,28 +147,24 @@ begin
 
   if HasLocalData then
   begin
-    if (LSenhaSalva <> '') and (not SameText(LSenha, LSenhaSalva)) then
-    begin
-      AtualizarStatus('Usuário e Senha Inválidos', True);
-      Exit;
-    end;
-
     LCached := GetCachedUser(Trim(EdLogin.Text));
     if Assigned(LCached) then
     begin
       try
-        frmPrincipal.AtualizarContextoUsuario(LCached);
-        frmPrincipal.Show;
-        Hide;
-        Exit;
+        if (LSenhaSalva <> '') and SameText(LSenha, LSenhaSalva) then
+        begin
+          frmPrincipal.AtualizarContextoUsuario(LCached);
+          frmPrincipal.Show;
+          Hide;
+          Exit;
+        end;
       finally
         LCached.Free;
       end;
     end;
   end;
 
-  dmApp.ApiBaseUrl := Trim(BaseUrlSelecionada);
-  AtualizarStatus('Autenticando...');
+  AtualizarStatus('Autenticando no WorbyRepRest...');
   try
     LResponse := dmApp.Login(Trim(EdLogin.Text), LSenha);
     try
@@ -193,11 +191,11 @@ var
 begin
   CbBaseUrl.Items.Clear;
   CbBaseUrl.Items.Add('PLASFAN');
-  CbBaseUrl.Items.Add('FILHO DO CRIADO');
-  LAtual := ApiUrlParaRotulo(dmApp.ApiBaseUrl);
+  CbBaseUrl.Items.Add('FILHO DO CRIADOR');
+{  LAtual := ApiUrlParaRotulo(dmApp.ApiBaseUrl);
   if (LAtual <> '') and (CbBaseUrl.Items.IndexOf(LAtual) < 0) then
     CbBaseUrl.Items.Add(LAtual);
-  CbBaseUrl.ItemIndex := CbBaseUrl.Items.IndexOf(LAtual);
+  CbBaseUrl.ItemIndex := CbBaseUrl.Items.IndexOf(LAtual);}
   if CbBaseUrl.ItemIndex < 0 then
     CbBaseUrl.ItemIndex := 0;
   EdLogin.Text := dmApp.GetSessionLogin;

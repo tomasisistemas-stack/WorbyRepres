@@ -43,6 +43,9 @@ type
     BtnCancelar: TRectangle;
     LayoutCancelar: TLayout;
     LbCancelar: TLabel;
+    procedure EdPrecoEnter(Sender: TObject);
+    procedure EdDescPctEnter(Sender: TObject);
+    procedure EdQtdEnter(Sender: TObject);
   private
     FPrecoBase: Double;
     FDescMax: Double;
@@ -53,6 +56,7 @@ type
     FUnidade: string;
     FEditingPedidoId: Integer;
     FEditingItemOrd: Integer;
+    FViewOnly: Boolean;
     function FmtNumero(const AValue: Double; const ADecimals: Integer = 2): string;
     function FmtMoeda(const AValue: Double): string;
     function ParseNumber(const AText: string; out AValue: Double): Boolean;
@@ -78,6 +82,7 @@ type
     procedure SetProdutoDados(const ACodigo, ANome, AUnidade, AEstoque: string;
       APrecoVenda, ADescMax: Double; const AImagem: TBytes);
     procedure SetEdicaoItem(const APedidoId, AItemOrd: Integer; const AQtd, APreco, ADescPct: Double);
+    procedure SetModoVisualizacao(const AQtd, APreco, ADescPct: Double);
   published
     procedure EdPrecoExit(Sender: TObject);
     procedure EdDescPctExit(Sender: TObject);
@@ -356,6 +361,9 @@ end;
 
 procedure TfrmPedidoItem.BtnAdicionarClick(Sender: TObject);
 begin
+  if FViewOnly then
+    Exit;
+
   try
     if not ValidarLimitesEntrada(True) then
       Exit;
@@ -389,8 +397,7 @@ begin
           if Assigned(AEdit) then
           begin
             AEdit.SetFocus;
-            AEdit.SelStart := Length(AEdit.Text);
-            AEdit.SelLength := 0;
+            AEdit.SelectAll;
           end;
         end);
     end
@@ -420,7 +427,8 @@ begin
     Exit;
   end;
 
-  if ParseNumber(EdPreco.Text, LPrecoDigitado) and (LPrecoDigitado < FValorMin) then
+  if ParseNumber(EdPreco.Text, LPrecoDigitado) and
+     (RoundTo(LPrecoDigitado, -2) < RoundTo(FValorMin, -2)) then
   begin
     Result := False;
     if AShowMessage then
@@ -431,7 +439,8 @@ begin
     Exit;
   end;
 
-  if ParseNumber(EdDescPct.Text, LDescDigitado) and (LDescDigitado > FDescMax) then
+  if ParseNumber(EdDescPct.Text, LDescDigitado) and
+     (RoundTo(LDescDigitado, -2) > RoundTo(FDescMax, -2)) then
   begin
     Result := False;
     if AShowMessage then
@@ -553,7 +562,7 @@ begin
     if not ParseNumber(EdPreco.Text, LPreco) then
       LPreco := FPrecoBase;
 
-    if LPreco < FValorMin then
+    if RoundTo(LPreco, -2) < RoundTo(FValorMin, -2) then
       LPreco := FValorMin;
 
     if FPrecoBase > 0 then
@@ -561,7 +570,7 @@ begin
     else
       LDesc := 0;
 
-    if LDesc > FDescMax then
+    if RoundTo(LDesc, -2) > RoundTo(FDescMax, -2) then
     begin
       LDesc := FDescMax;
       LPreco := FValorMin;
@@ -587,11 +596,11 @@ begin
     if not ParseNumber(EdDescPct.Text, LDesc) then
       LDesc := 0;
 
-    if LDesc > FDescMax then
+    if RoundTo(LDesc, -2) > RoundTo(FDescMax, -2) then
       LDesc := FDescMax;
 
     LPreco := FPrecoBase - (FPrecoBase * (LDesc / 100));
-    if LPreco < FValorMin then
+    if RoundTo(LPreco, -2) < RoundTo(FValorMin, -2) then
     begin
       LPreco := FValorMin;
       if FPrecoBase > 0 then
@@ -608,6 +617,11 @@ begin
   end;
 end;
 
+procedure TfrmPedidoItem.EdPrecoEnter(Sender: TObject);
+begin
+  EdPreco.SelectAll;
+end;
+
 procedure TfrmPedidoItem.EdPrecoExit(Sender: TObject);
 begin
   if not ValidarLimitesEntrada(True) then
@@ -615,11 +629,21 @@ begin
   ValidarPreco;
 end;
 
+procedure TfrmPedidoItem.EdDescPctEnter(Sender: TObject);
+begin
+  EdDescPct.SelectAll;
+end;
+
 procedure TfrmPedidoItem.EdDescPctExit(Sender: TObject);
 begin
   if not ValidarLimitesEntrada(True) then
     Exit;
   ValidarDesconto;
+end;
+
+procedure TfrmPedidoItem.EdQtdEnter(Sender: TObject);
+begin
+  EdQtd.SelectAll;
 end;
 
 procedure TfrmPedidoItem.EdQtdExit(Sender: TObject);
@@ -641,7 +665,8 @@ begin
       AvisarCampoInvalido('Preço unitário inválido.', EdPreco);
       Exit;
     end;
-    if ParseNumber(EdPreco.Text, LVal) and (LVal < FValorMin) then
+    if ParseNumber(EdPreco.Text, LVal) and
+       (RoundTo(LVal, -2) < RoundTo(FValorMin, -2)) then
     begin
       AvisarCampoInvalido(Format('Preço abaixo do permitido. Mínimo: R$ %.2f', [FValorMin]), EdPreco);
       Exit;
@@ -658,7 +683,8 @@ begin
       AvisarCampoInvalido('% de desconto inválido.', EdDescPct);
       Exit;
     end;
-    if ParseNumber(EdDescPct.Text, LVal) and (LVal > FDescMax) then
+    if ParseNumber(EdDescPct.Text, LVal) and
+       (RoundTo(LVal, -2) > RoundTo(FDescMax, -2)) then
     begin
       AvisarCampoInvalido(Format('Desconto acima do permitido. Máximo: %.2f%%', [FDescMax]), EdDescPct);
       Exit;
@@ -778,8 +804,7 @@ begin
         if Sender is TEdit then
         begin
           LEdit := TEdit(Sender);
-          LEdit.SelStart := Length(LEdit.Text);
-          LEdit.SelLength := 0;
+          LEdit.SelectAll;
         end;
       end);
   end;
@@ -812,10 +837,18 @@ procedure TfrmPedidoItem.SetProdutoDados(const ACodigo, ANome, AUnidade,
 var
   LStream: TBytesStream;
 begin
+  FViewOnly := False;
   FEditingPedidoId := 0;
   FEditingItemOrd := 0;
+  if Assigned(EdPreco) then EdPreco.Enabled := True;
+  if Assigned(EdDescPct) then EdDescPct.Enabled := True;
+  if Assigned(EdQtd) then EdQtd.Enabled := True;
+  if Assigned(BtnAdicionar) then BtnAdicionar.Visible := True;
+  if Assigned(BtnCancelar) then BtnCancelar.Visible := True;
   if Assigned(LbAdicionar) then
     LbAdicionar.Text := 'Adicionar';
+  if Assigned(LbCancelar) then
+    LbCancelar.Text := 'Cancelar';
   FProdutoCodigo := ACodigo;
   FProdutoNome := ANome;
   FUnidade := AUnidade;
@@ -898,14 +931,52 @@ end;
 
 procedure TfrmPedidoItem.SetEdicaoItem(const APedidoId, AItemOrd: Integer; const AQtd, APreco, ADescPct: Double);
 begin
+  FViewOnly := False;
   FEditingPedidoId := APedidoId;
   FEditingItemOrd := AItemOrd;
   if Assigned(LbAdicionar) then
     LbAdicionar.Text := 'Salvar';
+  if Assigned(LbCancelar) then
+    LbCancelar.Text := 'Cancelar';
+  if Assigned(BtnAdicionar) then BtnAdicionar.Visible := True;
+  if Assigned(BtnCancelar) then BtnCancelar.Visible := True;
+  if Assigned(EdPreco) then EdPreco.Enabled := True;
+  if Assigned(EdDescPct) then EdDescPct.Enabled := True;
+  if Assigned(EdQtd) then EdQtd.Enabled := True;
   EdQtd.Text := FmtNumero(AQtd, 0);
   EdPreco.Text := FmtNumero(APreco, 2);
   EdDescPct.Text := FmtNumero(ADescPct, 2);
   RecalcularTotal;
+end;
+
+procedure TfrmPedidoItem.SetModoVisualizacao(const AQtd, APreco, ADescPct: Double);
+begin
+  FViewOnly := True;
+  FEditingPedidoId := 0;
+  FEditingItemOrd := 0;
+  if Assigned(EdQtd) then
+  begin
+    EdQtd.Text := FmtNumero(AQtd, 0);
+    EdQtd.Enabled := False;
+  end;
+  if Assigned(EdPreco) then
+  begin
+    EdPreco.Text := FmtNumero(APreco, 2);
+    EdPreco.Enabled := False;
+  end;
+  if Assigned(EdDescPct) then
+  begin
+    EdDescPct.Text := FmtNumero(ADescPct, 2);
+    EdDescPct.Enabled := False;
+  end;
+  if Assigned(BtnAdicionar) then
+    BtnAdicionar.Visible := False;
+  if Assigned(BtnCancelar) then
+    BtnCancelar.Visible := True;
+  if Assigned(LbCancelar) then
+    LbCancelar.Text := 'Voltar';
+  RecalcularTotal;
+  ApplyResponsiveLayout;
 end;
 
 end.

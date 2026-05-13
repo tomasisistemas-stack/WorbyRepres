@@ -15,7 +15,8 @@ uses
   unFuncoes in 'unFuncoes.pas',
   unFormaPgto in 'unFormaPgto.pas',
   unPrazoPgto in 'unPrazoPgto.pas' {frmPrazoPgto},
-  unPedidosEnviados in 'unPedidosEnviados.pas' {frmPedidosEnviados};
+  unPedidosEnviados in 'unPedidosEnviados.pas' {frmPedidosEnviados},
+  unClienteCadastro in 'unClienteCadastro.pas' {frmClienteCadastro};
 
 {$R *.res}
 
@@ -26,6 +27,7 @@ begin
   Application.CreateForm(TfrmPrincipal, frmPrincipal);
   Application.CreateForm(TfrmPrazoPgto, frmPrazoPgto);
   Application.CreateForm(TfrmPedidosEnviados, frmPedidosEnviados);
+  Application.CreateForm(TfrmClienteCadastro, frmClienteCadastro);
   Application.Run;
 
 end.

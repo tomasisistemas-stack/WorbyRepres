@@ -3896,6 +3896,56 @@ object frmPedido: TfrmPedido
               end
             end
           end
+          object CardOrcamentoTotal: TRectangle
+            Align = Top
+            Fill.Color = claWhite
+            Margins.Left = 10.000000000000000000
+            Margins.Right = 10.000000000000000000
+            Margins.Bottom = 10.000000000000000000
+            Position.X = 10.000000000000000000
+            Position.Y = 260.000000000000000000
+            Size.Width = 340.000000000000000000
+            Size.Height = 60.000000000000000000
+            Size.PlatformDefault = False
+            Stroke.Kind = None
+            XRadius = 15.000000000000000000
+            YRadius = 15.000000000000000000
+            object LayoutOrcamentoTotalTexto: TLayout
+              Align = Client
+              Margins.Left = 20.000000000000000000
+              Margins.Top = 8.000000000000000000
+              Margins.Right = 20.000000000000000000
+              Margins.Bottom = 8.000000000000000000
+              Size.Width = 300.000000000000000000
+              Size.Height = 44.000000000000000000
+              Size.PlatformDefault = False
+              TabOrder = 0
+              object LbOrcamentoTituloTotal: TLabel
+                Align = Left
+                StyledSettings = []
+                Size.Width = 130.000000000000000000
+                Size.Height = 44.000000000000000000
+                Size.PlatformDefault = False
+                TextSettings.Font.Size = 14.000000000000000000
+                TextSettings.FontColor = xFF1D2939
+                Text = 'Or'#231'amento'
+                TabOrder = 0
+              end
+              object CbOrcamento: TComboBox
+                Touch.InteractiveGestures = [LongTap, DoubleTap]
+                Align = Client
+                Items.Strings = (
+                  'SIM'
+                  'N'#195'O')
+                ItemIndex = 1
+                Margins.Left = 12.000000000000000000
+                Size.Width = 158.000000000000000000
+                Size.Height = 44.000000000000000000
+                Size.PlatformDefault = False
+                TabOrder = 1
+              end
+            end
+          end
           object CardTotais: TRectangle
             Align = Top
             Fill.Color = claWhite

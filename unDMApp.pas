@@ -909,7 +909,7 @@ end;
 
 function TdmApp.CountPendingPedidos: Integer;
 begin
-  Result := GetScalarInt64('select count(*) from outbound_pedido where status = :p0', ['PENDENTE']);
+  Result := GetScalarInt64('select count(*) from outbound_pedido where coalesce(status, ''PENDENTE'') <> ''ENVIADO''', []);
 end;
 
 procedure TdmApp.ClearSyncData;
@@ -1219,27 +1219,34 @@ begin
     LRequest.Free;
   end;
 end;
+
 function TdmApp.GetApiBaseUrl: string;
 var
   LQuery: TFDQuery;
   LValue: string;
 begin
+  Result := Trim(ApiBaseUrlOverride);
+  if Result <> '' then
+    Exit;
+
+ // Result := 'http://plasfan.ddns.com.br:9000';
+//  Result := 'http://localhost:9000';
   LQuery := TFDQuery.Create(nil);
   try
     LQuery.Connection := FDConnection;
+    if not FDConnection.Connected then
+      FDConnection.Connected := True;
     LQuery.SQL.Text := 'select value from app_config where key = :p0';
     LQuery.ParamByName('p0').AsString := 'api_base_url';
     LQuery.Open;
-    if LQuery.IsEmpty or (Trim(LQuery.Fields[0].AsString) = '') then
-      Result := 'http://plasfan.ddns.com.br:9000'
-    else
+    if not LQuery.IsEmpty then
     begin
       LValue := Trim(LQuery.Fields[0].AsString);
       if SameText(LValue, 'PLASFAN') then
         Result := 'http://plasfan.ddns.com.br:9000'
-      else if SameText(LValue, 'FILHO DO CRIADOR') then
+      else if SameText(LValue, 'FILHO DO CRIADOR') or SameText(LValue, 'FILHO DO CRIADOR') then
         Result := 'http://plasfan.ddns.com.br:9004'
-      else
+      else if LValue <> '' then
         Result := LValue;
     end;
   finally
@@ -1470,6 +1477,9 @@ function TdmApp.Login(const ALogin, ASenha: string): TJSONObject;
 var
   LBody: TJSONObject;
   LOldUserJson: string;
+  LOldLogin: string;
+  LLoginChanged: Boolean;
+  LRepChanged: Boolean;
   LOldJson: TJSONValue;
   LOldObj: TJSONObject;
   LOldUserObj: TJSONObject;
@@ -1496,8 +1506,14 @@ var
 begin
   LOldRep := 0;
   LNewRep := 0;
+  LOldLogin := '';
 
-  // representante anterior gravado na sessao local
+  // usuario/representante anterior gravado na sessao local
+  try
+    LOldLogin := Trim(FDConnection.ExecSQLScalar('select coalesce(login, '''') from api_session where id = 1'));
+  except
+    LOldLogin := '';
+  end;
   LOldUserJson := Trim(FDConnection.ExecSQLScalar('select coalesce(user_json, '''') from api_session where id = 1'));
   if LOldUserJson <> '' then
   begin
@@ -1524,6 +1540,10 @@ begin
     end;
   end;
 
+  LLoginChanged := (LOldLogin <> '') and (not SameText(LOldLogin, ALogin));
+  if LLoginChanged and (CountPendingPedidos > 0) then
+    raise Exception.Create('Existem pedidos pendentes de envio. Sincronize antes de trocar o usu?rio.');
+
   LBody := TJSONObject.Create;
   try
     LBody.AddPair('login', ALogin);
@@ -1547,8 +1567,17 @@ begin
       LNewRep := StrToIntDef(Trim(LNewRepVal.Value), 0);
   end;
 
+  LLoginChanged := (LOldLogin <> '') and (not SameText(LOldLogin, ALogin));
+  LRepChanged := (LOldRep > 0) and (LNewRep > 0) and (LOldRep <> LNewRep);
+
+  if (LLoginChanged or LRepChanged) and (CountPendingPedidos > 0) then
+  begin
+    Result.Free;
+    raise Exception.Create('Existem pedidos pendentes de envio. Sincronize antes de trocar o usu?rio.');
+  end;
+
   // trocou representante -> limpa dados locais sincronizados e pedidos locais
-  if (LOldRep > 0) and (LNewRep > 0) and (LOldRep <> LNewRep) then
+  if LRepChanged then
   begin
     ClearSyncData;
     ExecSQL('delete from outbound_pedido_item', []);
@@ -1822,6 +1851,7 @@ var
   LUserObj: TJSONObject;
   LUserInner: TJSONObject;
   LRepVal: TJSONValue;
+  LOrcamento: Integer;
 begin
   Result := 0;
   LFS := TFormatSettings.Create;
@@ -1935,6 +1965,15 @@ begin
           LVendas1Obj := TJSONObject.ParseJSONValue(LPedidos.FieldByName('vendas1_json').AsString) as TJSONObject;
           if not Assigned(LVendas1Obj) then
             raise Exception.Create('vendas1_json invalido');
+
+          LOrcamento := LVendas1Obj.GetValue<Integer>('orcamento', 0);
+          if LOrcamento = 1 then
+          begin
+            LVendas1Obj.Free;
+            LPedidoObj.Free;
+            LPedidos.Next;
+            Continue;
+          end;
 
           // Mapeia campos locais para nomes reais da tabela vendas1
           LVal := LVendas1Obj.GetValue('id_fop');

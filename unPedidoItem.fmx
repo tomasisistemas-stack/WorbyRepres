@@ -243,6 +243,7 @@ object frmPedidoItem: TfrmPedidoItem
         Size.Width = 95.000000000000000000
         Size.Height = 32.000000000000000000
         Size.PlatformDefault = False
+        OnEnter = EdPrecoEnter
         OnExit = EdPrecoExit
       end
       object LbDescTitulo: TLabel
@@ -264,6 +265,7 @@ object frmPedidoItem: TfrmPedidoItem
         Size.Width = 86.000000000000000000
         Size.Height = 32.000000000000000000
         Size.PlatformDefault = False
+        OnEnter = EdDescPctEnter
         OnExit = EdDescPctExit
       end
       object LbQtdTitulo: TLabel
@@ -287,6 +289,7 @@ object frmPedidoItem: TfrmPedidoItem
         Size.Width = 70.000000000000000000
         Size.Height = 32.000000000000000000
         Size.PlatformDefault = False
+        OnEnter = EdQtdEnter
         OnExit = EdQtdExit
       end
       object LbQtdUn: TLabel

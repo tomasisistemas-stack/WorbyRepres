@@ -19,8 +19,9 @@
     <Transaction>2026/04/13 10:08:27.000.339,=C:\Tomasi Sistemas\WorbyRep\App\unFormaPgto.pas</Transaction>
     <Transaction>2026/04/13 11:16:40.000.191,=C:\Tomasi Sistemas\WorbyRep\App\unPrazoPgto.pas</Transaction>
     <Transaction>2026/04/29 14:16:17.000.639,=C:\Tomasi Sistemas\WorbyRepres\App\unPedidosEnviados.pas</Transaction>
+    <Transaction>2026/05/11 13:54:20.000.338,=C:\Tomasi Sistemas\WorbyRepres\App\unClienteCadastro.pas</Transaction>
   </Transactions>
 	<ActiveMobileDevice>
-		<NoProfile Android="emulator-5554" Android64="emulator-5554"/>
+		<NoProfile Android="teste_API_22" Android64="Pixel_8_Pro_API_35"/>
 	</ActiveMobileDevice>
 </BorlandProject>

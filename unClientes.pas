@@ -28,9 +28,13 @@ type
     Layout1: TLayout;
     LvClientes: TListView;
     BtnBuscar: TImage;
+    LyNovo: TLayout;
+    BtnNovo: TRectangle;
+    LbNovo: TLabel;
     procedure BtnBuscarClick(Sender: TObject);
     procedure BtnBuscarTap(Sender: TObject; const Point: TPointF);
     procedure ImgVoltarClick(Sender: TObject);
+    procedure BtnNovoClick(Sender: TObject);
   private
     FBuscarPorCodigo: Boolean;
     procedure Listar;
@@ -57,6 +61,7 @@ implementation
 
 uses
   unDMApp,
+  unClienteCadastro,
   unClienteDetalhe,
   unFuncoes;
 
@@ -182,6 +187,13 @@ end;
 procedure TfrmClientes.ImgVoltarClick(Sender: TObject);
 begin
   close;
+end;
+
+procedure TfrmClientes.BtnNovoClick(Sender: TObject);
+begin
+  if not Assigned(frmClienteCadastro) then
+    Application.CreateForm(TfrmClienteCadastro, frmClienteCadastro);
+  frmClienteCadastro.Show;
 end;
 
 procedure TfrmClientes.BtnBuscarClick(Sender: TObject);

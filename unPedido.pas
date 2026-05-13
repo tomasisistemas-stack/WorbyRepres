@@ -86,6 +86,10 @@ type
     LbPrazoPgtoTotal: TLabel;
     LayoutPrazoTotalIcone: TLayout;
     ImgPrazoPgtoTotal: TImage;
+    CardOrcamentoTotal: TRectangle;
+    LayoutOrcamentoTotalTexto: TLayout;
+    LbOrcamentoTituloTotal: TLabel;
+    CbOrcamento: TComboBox;
     CardTotais: TRectangle;
     LayoutTotBruto: TLayout;
     LbTotBrutoTitulo: TLabel;
@@ -115,6 +119,7 @@ type
     procedure CbModoBuscaProdChange(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure LvProdutosItemClick(const Sender: TObject; const AItem: TListViewItem);
+    procedure LvUltimasComprasItemClick(const Sender: TObject; const AItem: TListViewItem);
     procedure BtnEditarDigitadoClick(Sender: TObject);
     procedure BtnExcluirDigitadoClick(Sender: TObject);
   private
@@ -151,13 +156,17 @@ type
     procedure ListarUltimasCompras;
     procedure ListarItensDigitados;
     procedure AtualizarTotaisPedido;
-    procedure AbrirPedidoItem(const ACodProduto: string);
+    procedure AbrirPedidoItem(const ACodProduto: string; const ASomenteVisualizacao: Boolean = False;
+      const AQtdVisualizacao: Double = 1; const APrecoVisualizacao: Double = 0;
+      const ADescVisualizacao: Double = 0);
     procedure CriarOutboundPedidoDraft;
     procedure SincronizarOutboundPedidoDraft;
     function GetTabelaCols(const ATabela: string): TArray<string>;
     function FindCampo(const ACols: TArray<string>; const ACandidatos: array of string): string;
     function SafeFieldAsFloat(AQuery: TFDQuery; const ACampo: string): Double;
     function TotalLiquidoAtual: Double;
+    function OrcamentoSelecionado: Integer;
+    procedure SetOrcamentoSelecionado(const AValue: Integer);
     procedure HandleClose(Sender: TObject; var Action: TCloseAction);
     procedure ApplyResponsiveLayout;
     procedure SyncCardsTotalPgtoTexto;
@@ -208,6 +217,23 @@ procedure TfrmPedido.Resize;
 begin
   inherited;
   ApplyResponsiveLayout;
+end;
+
+function TfrmPedido.OrcamentoSelecionado: Integer;
+begin
+  Result := 0;
+  if Assigned(CbOrcamento) and (CbOrcamento.ItemIndex = 0) then
+    Result := 1;
+end;
+
+procedure TfrmPedido.SetOrcamentoSelecionado(const AValue: Integer);
+begin
+  if not Assigned(CbOrcamento) then
+    Exit;
+  if AValue = 1 then
+    CbOrcamento.ItemIndex := 0
+  else
+    CbOrcamento.ItemIndex := 1;
 end;
 
 function TfrmPedido.TotalLiquidoAtual: Double;
@@ -590,10 +616,12 @@ begin
     CardFormaPgtoTotal.Index := 0;
   if Assigned(CardPrazoPgtoTotal) then
     CardPrazoPgtoTotal.Index := 1;
-  if Assigned(CardObservacoes) then
-    CardObservacoes.Index := 2;
+  if Assigned(CardOrcamentoTotal) then
+    CardOrcamentoTotal.Index := 2;
   if Assigned(CardTotais) then
     CardTotais.Index := 3;
+  if Assigned(CardObservacoes) then
+    CardObservacoes.Index := 4;
 
   if csDestroying in ComponentState then
     Exit;
@@ -1325,12 +1353,15 @@ begin
   end;
 end;
 
-procedure TfrmPedido.AbrirPedidoItem(const ACodProduto: string);
+procedure TfrmPedido.AbrirPedidoItem(const ACodProduto: string; const ASomenteVisualizacao: Boolean;
+  const AQtdVisualizacao: Double; const APrecoVisualizacao: Double;
+  const ADescVisualizacao: Double);
 var
   LQuery: TFDQuery;
   LSql: string;
   LBytes: TBytes;
   LField: TField;
+  LPrecoVisualizacao: Double;
 begin
   if Trim(ACodProduto) = '' then
     Exit;
@@ -1368,6 +1399,17 @@ begin
       SafeFieldAsFloat(LQuery, 'desconto_maximo'),
       LBytes
     );
+    if ASomenteVisualizacao then
+    begin
+      LPrecoVisualizacao := APrecoVisualizacao;
+      if LPrecoVisualizacao <= 0 then
+        LPrecoVisualizacao := SafeFieldAsFloat(LQuery, 'preco_venda');
+      frmPedidoItem.SetModoVisualizacao(
+        AQtdVisualizacao,
+        LPrecoVisualizacao,
+        ADescVisualizacao
+      );
+    end;
     frmPedidoItem.Show;
   finally
     LQuery.Free;
@@ -1840,6 +1882,7 @@ begin
       LPreco := SafeFieldAsFloat(LQuery, 'preco');
 
       LItem := LvUltimasCompras.Items.Add;
+      LItem.TagString := LQuery.FieldByName('cod_produto').AsString;
       LItem.Text := LNome;
 
       if LUn = '' then
@@ -1900,6 +1943,7 @@ begin
     LVenda1.AddPair('cidade', FClienteCidade);
     LVenda1.AddPair('id_fop', TJSONNumber.Create(codFormaPgto));
     LVenda1.AddPair('id_prazo', TJSONNumber.Create(codPrazoPgto));
+    LVenda1.AddPair('orcamento', TJSONNumber.Create(OrcamentoSelecionado));
     LVenda1.AddPair('dta_pedido', FormatDateTime('yyyy-mm-dd', Date));
     LVenda1.AddPair('hora_pedido', FormatDateTime('hh:nn:ss', Now));
     LVenda1.AddPair('origem', 'APP');
@@ -1929,6 +1973,7 @@ begin
     LVenda1.AddPair('cidade', FClienteCidade);
     LVenda1.AddPair('id_fop', TJSONNumber.Create(codFormaPgto));
     LVenda1.AddPair('id_prazo', TJSONNumber.Create(codPrazoPgto));
+    LVenda1.AddPair('orcamento', TJSONNumber.Create(OrcamentoSelecionado));
     LVenda1.AddPair('dta_pedido', FormatDateTime('yyyy-mm-dd', Date));
     LVenda1.AddPair('hora_pedido', FormatDateTime('hh:nn:ss', Now));
     LVenda1.AddPair('origem', 'APP');
@@ -1980,7 +2025,20 @@ begin
     CbModoBuscaProd.OnChange := CbModoBuscaProdChange;
   end;
   CbModoBuscaProdChange(CbModoBuscaProd);
+
+  if Assigned(CbOrcamento) then
+  begin
+    if CbOrcamento.Items.Count = 0 then
+    begin
+      CbOrcamento.Items.Add('SIM');
+      CbOrcamento.Items.Add('N?O');
+    end;
+    if CbOrcamento.ItemIndex < 0 then
+      CbOrcamento.ItemIndex := 1;
+  end;
   LvProdutos.OnItemClick := LvProdutosItemClick;
+  if Assigned(LvUltimasCompras) then
+    LvUltimasCompras.OnItemClick := LvUltimasComprasItemClick;
   ListarProdutos;
   ListarUltimasCompras;
   AtualizarContadorItensDigitados;
@@ -2101,6 +2159,58 @@ begin
   AbrirPedidoItem(LCod);
 end;
 
+procedure TfrmPedido.LvUltimasComprasItemClick(const Sender: TObject;
+  const AItem: TListViewItem);
+var
+  LCod: string;
+  LQuery: TFDQuery;
+  LQtd: Double;
+  LPreco: Double;
+  LPrecoVenda: Double;
+  LDesc: Double;
+begin
+  if AItem = nil then
+    Exit;
+
+  LCod := Trim(AItem.TagString);
+  if (LCod = '') or (codCliente <= 0) then
+    Exit;
+
+  LQtd := 1;
+  LPreco := 0;
+  LDesc := 0;
+
+  LQuery := TFDQuery.Create(nil);
+  try
+    LQuery.Connection := dmApp.FDConnection;
+    LQuery.SQL.Text :=
+      'select v2.qtd, v2.preco, p.preco_venda ' +
+      'from vendas2 v2 ' +
+      'inner join vendas1 v1 on v1.numdoc = v2.numdoc ' +
+      'inner join produto p on p.cod_produto = v2.cod_produto ' +
+      'where v1.cod_cliente = :p0 and v2.cod_produto = :p1 ' +
+      'order by v1.dtadoc desc ' +
+      'limit 1';
+    LQuery.ParamByName('p0').AsInteger := codCliente;
+    LQuery.ParamByName('p1').AsString := LCod;
+    LQuery.Open;
+    if not LQuery.Eof then
+    begin
+      LQtd := SafeFieldAsFloat(LQuery, 'qtd');
+      LPreco := SafeFieldAsFloat(LQuery, 'preco');
+      LPrecoVenda := SafeFieldAsFloat(LQuery, 'preco_venda');
+      if LQtd <= 0 then
+        LQtd := 1;
+      if LPrecoVenda > 0 then
+        LDesc := ((LPrecoVenda - LPreco) / LPrecoVenda) * 100;
+    end;
+  finally
+    LQuery.Free;
+  end;
+
+  AbrirPedidoItem(LCod, True, LQtd, LPreco, LDesc);
+end;
+
 procedure TfrmPedido.SetCliente(const ANome, ACodigo, ACidade: string);
 begin
   FClienteNome := ANome;
@@ -2114,6 +2224,7 @@ begin
   codCliente := 0;
   codFormaPgto := 0;
   codPrazoPgto := 0;
+  SetOrcamentoSelecionado(0);
   outboundPedidoId := 0;
   FVoltarParaPedidosDigitados := False;
 
@@ -2159,6 +2270,7 @@ var
   LObs: string;
   LCodFop: Integer;
   LCodPrazo: Integer;
+  LOrcamento: Integer;
 begin
   if APedidoId <= 0 then
     Exit;
@@ -2181,6 +2293,7 @@ begin
     LObs := '';
     LCodFop := 0;
     LCodPrazo := 0;
+    LOrcamento := 0;
 
     LJson := TJSONObject.ParseJSONValue(Q.FieldByName('vendas1_json').AsString);
     try
@@ -2197,6 +2310,8 @@ begin
           LCodFop := StrToIntDef(LObj.GetValue('id_fop').Value, 0);
         if Assigned(LObj.GetValue('id_prazo')) then
           LCodPrazo := StrToIntDef(LObj.GetValue('id_prazo').Value, 0);
+        if Assigned(LObj.GetValue('orcamento')) then
+          LOrcamento := StrToIntDef(LObj.GetValue('orcamento').Value, 0);
         if Assigned(LObj.GetValue('observacoes')) then
           LObs := LObj.GetValue('observacoes').Value;
       end;
@@ -2210,6 +2325,7 @@ begin
     codCliente := StrToIntDef(LCodCliente, 0);
     codFormaPgto := LCodFop;
     codPrazoPgto := LCodPrazo;
+    SetOrcamentoSelecionado(LOrcamento);
 
     if Assigned(LbNome) then
       LbNome.Text := FClienteNome;

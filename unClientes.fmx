@@ -1594,6 +1594,41 @@ object frmClientes: TfrmClientes
           OnClick = ImgVoltarClick
         end
       end
+      object LyNovo: TLayout
+        Align = MostRight
+        Margins.Left = 8.000000000000000000
+        Margins.Right = 8.000000000000000000
+        Position.X = 212.000000000000000000
+        Size.Width = 130.000000000000000000
+        Size.Height = 72.000000000000000000
+        Size.PlatformDefault = False
+        TabOrder = 2
+        OnClick = BtnNovoClick
+        object BtnNovo: TRectangle
+          Align = Center
+          Fill.Color = xFF4A90E2
+          Size.Width = 120.000000000000000000
+          Size.Height = 42.000000000000000000
+          Size.PlatformDefault = False
+          Stroke.Kind = None
+          XRadius = 18.000000000000000000
+          YRadius = 18.000000000000000000
+          OnClick = BtnNovoClick
+          object LbNovo: TLabel
+            Align = Client
+            StyledSettings = []
+            Size.Width = 120.000000000000000000
+            Size.Height = 42.000000000000000000
+            Size.PlatformDefault = False
+            TextSettings.Font.Size = 16.000000000000000000
+            TextSettings.Font.StyleExt = {00070000000000000004000000}
+            TextSettings.FontColor = claWhite
+            TextSettings.HorzAlign = Center
+            Text = 'Novo'
+            OnClick = BtnNovoClick
+          end
+        end
+      end
     end
     object Layout1: TLayout
       Align = Client
