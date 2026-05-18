@@ -332,10 +332,14 @@ begin
     LObj.AddPair('nom_produto', FProdutoNome);
     LObj.AddPair('unidade', FUnidade);
     LObj.AddPair('qtd', TJSONNumber.Create(LQtd));
+    LObj.AddPair('volume', TJSONNumber.Create(LQtd));
     LObj.AddPair('preco', TJSONNumber.Create(LPreco));
+    LObj.AddPair('preco_bruto', TJSONNumber.Create(FPrecoBase));
     LObj.AddPair('desconto_pct', TJSONNumber.Create(LDesc));
     LObj.AddPair('desconto_maximo', TJSONNumber.Create(FDescMax));
     LObj.AddPair('valor_minimo', TJSONNumber.Create(FValorMin));
+    LObj.AddPair('sub_total', TJSONNumber.Create(LTotal));
+    LObj.AddPair('sub_total_bruto', TJSONNumber.Create(FPrecoBase * LQtd));
     LObj.AddPair('total_item', TJSONNumber.Create(LTotal));
 
   if (FEditingPedidoId > 0) and (FEditingItemOrd > 0) then

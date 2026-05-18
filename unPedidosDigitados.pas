@@ -578,7 +578,8 @@ begin
     end;
 
     LConteudo.Add(StringOfChar('-', 95));
-    LConteudo.Add(PadRight('CONDICAO DE PAGTO.: ' + LFop + ' - ' + LPrazo, 45) + PadLeft('TOTAL: ' + FormatFloat('#,###,##0.00', LTot, LFS), 48));
+    LConteudo.Add(PadRight('CONDICAO DE PAGTO.: ' + LFop + ' - ' + LPrazo, 68) + PadLeft('TOTAL: ' + FormatFloat('#,###,##0.00', LTot, LFS), 25));
+
 
     LPdfFile := IncludeTrailingPathDelimiter(GetPdfOutputDir) + Format('pedido_digitado_%d.pdf', [APedidoId]);
     SaveTextAsPdf(LPdfFile, LConteudo);
@@ -638,6 +639,7 @@ procedure TfrmPedidosDigitados.BtnBuscarClick(Sender: TObject);
 begin
   CarregarPedidos;
 end;
+
 
 procedure TfrmPedidosDigitados.LvPedidosItemClick(const Sender: TObject; const AItem: TListViewItem);
 begin

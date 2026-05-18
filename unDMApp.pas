@@ -704,7 +704,9 @@ begin
   {$IFDEF MSWINDOWS}
   LPath := TPath.Combine(ExtractFilePath(ParamStr(0)), 'sync_sql.log');
   {$ELSE}
-  LPath := TPath.Combine(TPath.GetSharedDocumentsPath, 'WorbyRep');
+  // Mesmo motivo do SQLite: em Android 11+/MIUI a pasta Documents compartilhada
+  // pode ser bloqueada. O log da sincronizacao fica na pasta privada do app.
+  LPath := TPath.Combine(TPath.GetDocumentsPath, 'WorbyRep');
   if not TDirectory.Exists(LPath) then
     TDirectory.CreateDirectory(LPath);
   LPath := TPath.Combine(LPath, 'sync_sql.log');
@@ -732,7 +734,11 @@ begin
         LLine.Append(LValue);
       end;
     end;
-    TFile.AppendAllText(LPath, LLine.ToString + sLineBreak, TEncoding.UTF8);
+    try
+      TFile.AppendAllText(LPath, LLine.ToString + sLineBreak, TEncoding.UTF8);
+    except
+      // Falha ao gravar log nao pode interromper a sincronizacao.
+    end;
   finally
     LLine.Free;
   end;
@@ -1035,7 +1041,9 @@ begin
   Result := TPath.Combine(ExtractFilePath(ParamStr(0)), '..\db.sqllite');
   Result := TPath.GetFullPath(Result);
   {$ELSE}
-  Result := TPath.Combine(TPath.GetSharedDocumentsPath, 'WorbyRep');
+  // Em Android 11+ (especialmente MIUI), pasta Documents compartilhada pode
+  // bloquear criacao/escrita por scoped storage. Banco fica na pasta privada do app.
+  Result := TPath.Combine(TPath.GetDocumentsPath, 'WorbyRep');
   if not TDirectory.Exists(Result) then
     TDirectory.CreateDirectory(Result);
   Result := TPath.Combine(Result, 'db.sqllite');
@@ -1594,6 +1602,9 @@ procedure TdmApp.OpenConnection;
 var
   LDbPath: string;
   LDir: string;
+  {$IFDEF ANDROID}
+  LOldDbPath: string;
+  {$ENDIF}
 begin
   FDConnection.Connected := False;
   FDConnection.Params.Clear;
@@ -1602,6 +1613,20 @@ begin
   LDir := ExtractFilePath(LDbPath);
   if (LDir <> '') and (not TDirectory.Exists(LDir)) then
     TDirectory.CreateDirectory(LDir);
+
+  {$IFDEF ANDROID}
+  if not TFile.Exists(LDbPath) then
+  begin
+    try
+      LOldDbPath := TPath.Combine(TPath.Combine(TPath.GetSharedDocumentsPath, 'WorbyRep'), 'db.sqllite');
+      if TFile.Exists(LOldDbPath) then
+        TFile.Copy(LOldDbPath, LDbPath, False);
+    except
+      // Se o MIUI bloquear a pasta compartilhada, cria um banco novo na pasta privada.
+    end;
+  end;
+  {$ENDIF}
+
   if not TFile.Exists(LDbPath) then
     TFile.WriteAllText(LDbPath, '');
   FDConnection.Params.Add('Database=' + LDbPath);
@@ -1677,6 +1702,7 @@ var
   LName: string;
   LPair: TJSONPair;
   LPreco: Double;
+  LPrecoBruto: Double;
   LQtd: Double;
   LVal: TJSONValue;
   LFS: TFormatSettings;
@@ -1716,18 +1742,31 @@ begin
   if (not Assigned(Result.GetValue('desconto'))) and Assigned(AItemObj.GetValue('desconto_pct')) then
     Result.AddPair('desconto', AItemObj.GetValue('desconto_pct').Clone as TJSONValue);
 
+  if (not Assigned(Result.GetValue('volume'))) and Assigned(Result.GetValue('qtd')) then
+    Result.AddPair('volume', Result.GetValue('qtd').Clone as TJSONValue);
+
   LPreco := 0;
+  LPrecoBruto := 0;
   LQtd := 0;
   LFS := TFormatSettings.Create;
   LFS.DecimalSeparator := '.';
   LVal := Result.GetValue('preco');
   if Assigned(LVal) then
     LPreco := StrToFloatDef(StringReplace(LVal.Value, ',', '.', [rfReplaceAll]), 0, LFS);
+  LVal := Result.GetValue('preco_bruto');
+  if Assigned(LVal) then
+    LPrecoBruto := StrToFloatDef(StringReplace(LVal.Value, ',', '.', [rfReplaceAll]), 0, LFS);
+  if LPrecoBruto = 0 then
+    LPrecoBruto := LPreco;
   LVal := Result.GetValue('qtd');
   if Assigned(LVal) then
     LQtd := StrToFloatDef(StringReplace(LVal.Value, ',', '.', [rfReplaceAll]), 0, LFS);
+  if (not Assigned(Result.GetValue('preco_bruto'))) and (LPrecoBruto <> 0) then
+    Result.AddPair('preco_bruto', TJSONNumber.Create(LPrecoBruto));
   if (not Assigned(Result.GetValue('sub_total'))) and (LPreco <> 0) and (LQtd <> 0) then
     Result.AddPair('sub_total', TJSONNumber.Create(LPreco * LQtd));
+  if (not Assigned(Result.GetValue('sub_total_bruto'))) and (LPrecoBruto <> 0) and (LQtd <> 0) then
+    Result.AddPair('sub_total_bruto', TJSONNumber.Create(LPrecoBruto * LQtd));
 end;
 
 function TdmApp.QueuePedido(const AVendas1, AVendas2: string): Integer;
@@ -1841,7 +1880,9 @@ var
   LTotBruto: Double;
   LTotLiquido: Double;
   LItemSub: Double;
+  LItemSubBruto: Double;
   LItemPreco: Double;
+  LItemPrecoBruto: Double;
   LItemQtd: Double;
   LRepCodeStr: string;
   LFS: TFormatSettings;
@@ -2088,22 +2129,40 @@ begin
             LVendas2Array.AddElement(LItemObj);
 
             LItemSub := 0;
+            LItemSubBruto := 0;
+            LItemPreco := 0;
+            LItemPrecoBruto := 0;
+            LItemQtd := 0;
+
+            LVal := LItemObj.GetValue('qtd');
+            if Assigned(LVal) then
+              LItemQtd := StrToFloatDef(StringReplace(LVal.Value, ',', '.', [rfReplaceAll]), 0, LFS);
+
             LVal := LItemObj.GetValue('sub_total');
             if Assigned(LVal) then
               LItemSub := StrToFloatDef(StringReplace(LVal.Value, ',', '.', [rfReplaceAll]), 0, LFS);
             if LItemSub = 0 then
             begin
-              LItemPreco := 0;
-              LItemQtd := 0;
               LVal := LItemObj.GetValue('preco');
               if Assigned(LVal) then
                 LItemPreco := StrToFloatDef(StringReplace(LVal.Value, ',', '.', [rfReplaceAll]), 0, LFS);
-              LVal := LItemObj.GetValue('qtd');
-              if Assigned(LVal) then
-                LItemQtd := StrToFloatDef(StringReplace(LVal.Value, ',', '.', [rfReplaceAll]), 0, LFS);
               LItemSub := LItemPreco * LItemQtd;
             end;
-            LTotBruto := LTotBruto + LItemSub;
+
+            LVal := LItemObj.GetValue('sub_total_bruto');
+            if Assigned(LVal) then
+              LItemSubBruto := StrToFloatDef(StringReplace(LVal.Value, ',', '.', [rfReplaceAll]), 0, LFS);
+            if LItemSubBruto = 0 then
+            begin
+              LVal := LItemObj.GetValue('preco_bruto');
+              if Assigned(LVal) then
+                LItemPrecoBruto := StrToFloatDef(StringReplace(LVal.Value, ',', '.', [rfReplaceAll]), 0, LFS);
+              if LItemPrecoBruto = 0 then
+                LItemPrecoBruto := LItemPreco;
+              LItemSubBruto := LItemPrecoBruto * LItemQtd;
+            end;
+
+            LTotBruto := LTotBruto + LItemSubBruto;
             LTotLiquido := LTotLiquido + LItemSub;
             LItens.Next;
           end;

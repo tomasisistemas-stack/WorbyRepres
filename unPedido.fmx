@@ -2318,7 +2318,7 @@ object frmPedido: TfrmPedido
           Size.Height = 460.000000000000000000
           Size.PlatformDefault = False
           TabOrder = 0
-          Viewport.Width = 360.000000000000000000
+          Viewport.Width = 344.000000000000000000
           Viewport.Height = 460.000000000000000000
           object CardFormaPgtoTotal: TRectangle
             Align = Top
@@ -2328,7 +2328,7 @@ object frmPedido: TfrmPedido
             Margins.Right = 10.000000000000000000
             Position.X = 10.000000000000000000
             Position.Y = 10.000000000000000000
-            Size.Width = 340.000000000000000000
+            Size.Width = 324.000000000000000000
             Size.Height = 60.000000000000000000
             Size.PlatformDefault = False
             Stroke.Kind = None
@@ -2376,7 +2376,7 @@ object frmPedido: TfrmPedido
               Margins.Top = 10.000000000000000000
               Margins.Right = 20.000000000000000000
               Margins.Bottom = 10.000000000000000000
-              Position.X = 280.000000000000000000
+              Position.X = 264.000000000000000000
               Position.Y = 10.000000000000000000
               Size.Width = 40.000000000000000000
               Size.Height = 40.000000000000000000
@@ -3116,7 +3116,7 @@ object frmPedido: TfrmPedido
             Margins.Right = 10.000000000000000000
             Position.X = 10.000000000000000000
             Position.Y = 80.000000000000000000
-            Size.Width = 340.000000000000000000
+            Size.Width = 324.000000000000000000
             Size.Height = 60.000000000000000000
             Size.PlatformDefault = False
             Stroke.Kind = None
@@ -3164,7 +3164,7 @@ object frmPedido: TfrmPedido
               Margins.Top = 10.000000000000000000
               Margins.Right = 20.000000000000000000
               Margins.Bottom = 10.000000000000000000
-              Position.X = 280.000000000000000000
+              Position.X = 264.000000000000000000
               Position.Y = 10.000000000000000000
               Size.Width = 40.000000000000000000
               Size.Height = 40.000000000000000000
@@ -3903,8 +3903,8 @@ object frmPedido: TfrmPedido
             Margins.Right = 10.000000000000000000
             Margins.Bottom = 10.000000000000000000
             Position.X = 10.000000000000000000
-            Position.Y = 260.000000000000000000
-            Size.Width = 340.000000000000000000
+            Position.Y = 300.000000000000000000
+            Size.Width = 324.000000000000000000
             Size.Height = 60.000000000000000000
             Size.PlatformDefault = False
             Stroke.Kind = None
@@ -3916,7 +3916,7 @@ object frmPedido: TfrmPedido
               Margins.Top = 8.000000000000000000
               Margins.Right = 20.000000000000000000
               Margins.Bottom = 8.000000000000000000
-              Size.Width = 300.000000000000000000
+              Size.Width = 284.000000000000000000
               Size.Height = 44.000000000000000000
               Size.PlatformDefault = False
               TabOrder = 0
@@ -3939,7 +3939,7 @@ object frmPedido: TfrmPedido
                   'N'#195'O')
                 ItemIndex = 1
                 Margins.Left = 12.000000000000000000
-                Size.Width = 158.000000000000000000
+                Size.Width = 142.000000000000000000
                 Size.Height = 44.000000000000000000
                 Size.PlatformDefault = False
                 TabOrder = 1
@@ -3953,8 +3953,8 @@ object frmPedido: TfrmPedido
             Margins.Right = 10.000000000000000000
             Margins.Bottom = 10.000000000000000000
             Position.X = 10.000000000000000000
-            Position.Y = 300.000000000000000000
-            Size.Width = 340.000000000000000000
+            Position.Y = 370.000000000000000000
+            Size.Width = 324.000000000000000000
             Size.Height = 140.000000000000000000
             Size.PlatformDefault = False
             Stroke.Kind = None
@@ -3967,7 +3967,7 @@ object frmPedido: TfrmPedido
               Margins.Right = 16.000000000000000000
               Position.X = 16.000000000000000000
               Position.Y = 12.000000000000000000
-              Size.Width = 308.000000000000000000
+              Size.Width = 292.000000000000000000
               Size.Height = 24.000000000000000000
               Size.PlatformDefault = False
               TabOrder = 0
@@ -3984,7 +3984,7 @@ object frmPedido: TfrmPedido
               object LbTotBrutoValor: TLabel
                 Align = Client
                 StyledSettings = []
-                Size.Width = 148.000000000000000000
+                Size.Width = 132.000000000000000000
                 Size.Height = 24.000000000000000000
                 Size.PlatformDefault = False
                 TextSettings.Font.Size = 14.000000000000000000
@@ -4000,7 +4000,7 @@ object frmPedido: TfrmPedido
               Margins.Right = 16.000000000000000000
               Position.X = 16.000000000000000000
               Position.Y = 44.000000000000000000
-              Size.Width = 308.000000000000000000
+              Size.Width = 292.000000000000000000
               Size.Height = 24.000000000000000000
               Size.PlatformDefault = False
               TabOrder = 1
@@ -4017,7 +4017,7 @@ object frmPedido: TfrmPedido
               object LbTotDescValor: TLabel
                 Align = Client
                 StyledSettings = []
-                Size.Width = 148.000000000000000000
+                Size.Width = 132.000000000000000000
                 Size.Height = 24.000000000000000000
                 Size.PlatformDefault = False
                 TextSettings.Font.Size = 14.000000000000000000
@@ -4033,7 +4033,7 @@ object frmPedido: TfrmPedido
               Margins.Right = 16.000000000000000000
               Position.X = 16.000000000000000000
               Position.Y = 76.000000000000000000
-              Size.Width = 308.000000000000000000
+              Size.Width = 292.000000000000000000
               Size.Height = 24.000000000000000000
               Size.PlatformDefault = False
               TabOrder = 2
@@ -4051,7 +4051,7 @@ object frmPedido: TfrmPedido
               object LbTotLiquidoValor: TLabel
                 Align = Client
                 StyledSettings = []
-                Size.Width = 148.000000000000000000
+                Size.Width = 132.000000000000000000
                 Size.Height = 24.000000000000000000
                 Size.PlatformDefault = False
                 TextSettings.Font.Size = 20.000000000000000000
@@ -4071,7 +4071,7 @@ object frmPedido: TfrmPedido
             Margins.Bottom = 10.000000000000000000
             Position.X = 10.000000000000000000
             Position.Y = 150.000000000000000000
-            Size.Width = 340.000000000000000000
+            Size.Width = 324.000000000000000000
             Size.Height = 140.000000000000000000
             Size.PlatformDefault = False
             Stroke.Kind = None
@@ -4085,7 +4085,7 @@ object frmPedido: TfrmPedido
               Margins.Right = 16.000000000000000000
               Position.X = 16.000000000000000000
               Position.Y = 12.000000000000000000
-              Size.Width = 308.000000000000000000
+              Size.Width = 292.000000000000000000
               Size.Height = 24.000000000000000000
               Size.PlatformDefault = False
               TextSettings.Font.Size = 16.000000000000000000
@@ -4103,11 +4103,11 @@ object frmPedido: TfrmPedido
               Margins.Top = 4.000000000000000000
               Margins.Right = 16.000000000000000000
               Margins.Bottom = 12.000000000000000000
-              Size.Width = 308.000000000000000000
+              Size.Width = 292.000000000000000000
               Size.Height = 88.000000000000000000
               Size.PlatformDefault = False
               TabOrder = 1
-              Viewport.Width = 308.000000000000000000
+              Viewport.Width = 292.000000000000000000
               Viewport.Height = 88.000000000000000000
             end
           end

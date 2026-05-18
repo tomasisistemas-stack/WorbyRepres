@@ -402,7 +402,8 @@ begin
       LPrazo := IntToStr(LPrazoId);
 
     LConteudo.Add(StringOfChar('-', 95));
-    LConteudo.Add('CONDICAO DE PAGTO.: ' + LFop + ' - ' + LPrazo+PadLeft('TOTAL: ' + FormatFloat('#,###,##0.00', LTot, LFS), 61));
+    LConteudo.Add(PadRight('CONDICAO DE PAGTO.: ' + LFop + ' - ' + LPrazo, 68) + PadLeft('TOTAL: ' + FormatFloat('#,###,##0.00', LTot, LFS), 25));
+
 
     LPdfFile := IncludeTrailingPathDelimiter(System.IOUtils.TPath.GetDocumentsPath) +
       Format('pedido_enviado_%d.pdf', [APedidoId]);
