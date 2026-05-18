@@ -17,20 +17,19 @@ type
     BackgroundRect: TRectangle;
     TopBar: TRectangle;
     LbTitulo: TLabel;
-    CardBusca: TRectangle;
-    LbBuscar: TLabel;
-    EdBuscar: TEdit;
-    CbModoBusca: TComboBox;
-    LbBtnBuscar: TLabel;
     lbottom: TLayout;
     LyVoltar: TLayout;
     ImgVoltar: TImage;
     Layout1: TLayout;
     LvClientes: TListView;
-    BtnBuscar: TImage;
     LyNovo: TLayout;
     BtnNovo: TRectangle;
     LbNovo: TLabel;
+    CardBusca: TRectangle;
+    LbBuscar: TLabel;
+    EdBuscar: TEdit;
+    CbModoBusca: TComboBox;
+    BtnBuscar: TImage;
     procedure BtnBuscarClick(Sender: TObject);
     procedure BtnBuscarTap(Sender: TObject; const Point: TPointF);
     procedure ImgVoltarClick(Sender: TObject);
@@ -242,7 +241,15 @@ begin
 
   LTexto := Trim(EdBuscar.Text);
   if Assigned(CbModoBusca) then
+  begin
     FBuscarPorCodigo := SameText(CbModoBusca.Selected.Text, 'Código');
+    LCampoCidade := CbModoBusca.Selected.Text;
+  end
+  else
+  begin
+    FBuscarPorCodigo := False;
+    LCampoCidade := '';
+  end;
   LQuery := TFDQuery.Create(nil);
   try
     LQuery.Connection := dmApp.FDConnection;
@@ -250,6 +257,16 @@ begin
     begin
       LQuery.SQL.Text := Format('select c.cod_cliente, c.nom_cliente, cd.nom_cidade||''-''||cd.uf as cidade_desc from cliente c left outer join cidades cd on cd.cod_cidade = c.cod_cidade where %s = :p0 order by nom_cliente limit 200', [LCampoCodigo]);
       LQuery.ParamByName('p0').AsString := LTexto;
+    end
+    else if SameText(LCampoCidade, 'Cidade') then
+    begin
+      LQuery.SQL.Text :=
+        'select c.cod_cliente, c.nom_cliente, cd.nom_cidade||''-''||cd.uf as cidade_desc '+
+        'from cliente c '+
+        'left outer join cidades cd on cd.cod_cidade = c.cod_cidade '+
+        'where upper(coalesce(cd.nom_cidade, '''') || ''-'' || coalesce(cd.uf, '''')) like :p0 '+
+        'order by cd.nom_cidade, c.nom_cliente limit 200';
+      LQuery.ParamByName('p0').AsString := '%' + UpperCase(LTexto) + '%';
     end
     else
     begin
@@ -305,6 +322,7 @@ begin
     CbModoBusca.Items.Clear;
     CbModoBusca.Items.Add('Nome');
     CbModoBusca.Items.Add('Código');
+    CbModoBusca.Items.Add('Cidade');
     CbModoBusca.ItemIndex := 0;
   end;
   FBuscarPorCodigo := False;

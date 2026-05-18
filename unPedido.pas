@@ -395,6 +395,28 @@ var
     LTextW := Max(200, ALv.Width - AReservaDireita);
     ALv.ItemAppearanceObjects.ItemObjects.Text.Width := LTextW;
     ALv.ItemAppearanceObjects.ItemObjects.Detail.Width := LTextW;
+    ALv.ItemAppearanceObjects.ItemEditObjects.Text.Width := LTextW;
+    ALv.ItemAppearanceObjects.ItemEditObjects.Detail.Width := LTextW;
+  end;
+  procedure AjustarAparenciaProdutos;
+  begin
+    if not Assigned(LvProdutos) then
+      Exit;
+
+    LvProdutos.ItemAppearance.ItemHeight := 104;
+    LvProdutos.EditMode := False;
+    LvProdutos.ItemAppearanceObjects.ItemObjects.Text.WordWrap := True;
+    LvProdutos.ItemAppearanceObjects.ItemObjects.Text.Height := 40;
+    LvProdutos.ItemAppearanceObjects.ItemObjects.Text.PlaceOffset.Y := 1;
+    LvProdutos.ItemAppearanceObjects.ItemObjects.Detail.Height := 19;
+    LvProdutos.ItemAppearanceObjects.ItemObjects.Detail.PlaceOffset.Y := 78;
+    LvProdutos.ItemAppearanceObjects.ItemObjects.Detail.TextVertAlign := TTextAlign.Leading;
+    LvProdutos.ItemAppearanceObjects.ItemEditObjects.Text.WordWrap := True;
+    LvProdutos.ItemAppearanceObjects.ItemEditObjects.Text.Height := 40;
+    LvProdutos.ItemAppearanceObjects.ItemEditObjects.Text.PlaceOffset.Y := 1;
+    LvProdutos.ItemAppearanceObjects.ItemEditObjects.Detail.Height := 20;
+    LvProdutos.ItemAppearanceObjects.ItemEditObjects.Detail.PlaceOffset.Y := 78;
+    LvProdutos.ItemAppearanceObjects.ItemEditObjects.Detail.TextVertAlign := TTextAlign.Leading;
   end;
   procedure AjustarProdutosPaisagem;
   var
@@ -406,10 +428,10 @@ var
     if not Assigned(LvProdutos) then
       Exit;
 
+    //AjustarAparenciaProdutos;
+
     if LIsLandscape then
     begin
-      LvProdutos.ItemAppearanceObjects.ItemObjects.Text.WordWrap := False;
-
       if Assigned(CardBuscaProd) then
       begin
         CardBuscaProd.Height := 48;
@@ -453,12 +475,10 @@ var
       if Assigned(LayoutProdutosList) then
         LayoutProdutosList.Margins.Top := 2;
 
-      AjustarLarguraListView(LvProdutos, 1);
+      //AjustarLarguraListView(LvProdutos, 1);
     end
     else
     begin
-      LvProdutos.ItemAppearanceObjects.ItemObjects.Text.WordWrap := False;
-
       if Assigned(CardBuscaProd) then
       begin
         CardBuscaProd.Height := 96;
@@ -1719,7 +1739,7 @@ begin
     Exit;
   end;
 
-  TDialogService.MessageDialog(
+  TDialogServiceAsync.MessageDialog(
     'Deseja excluir este item digitado?',
     System.UITypes.TMsgDlgType.mtConfirmation,
     [System.UITypes.TMsgDlgBtn.mbYes, System.UITypes.TMsgDlgBtn.mbNo],
@@ -2414,7 +2434,7 @@ end;
 
 procedure TfrmPedido.BtnCancelarClick(Sender: TObject);
 begin
-  TDialogService.MessageDialog(
+  TDialogServiceAsync.MessageDialog(
     'Deseja cancelar o pedido?',
     System.UITypes.TMsgDlgType.mtConfirmation,
     [System.UITypes.TMsgDlgBtn.mbYes, System.UITypes.TMsgDlgBtn.mbNo],
@@ -2461,7 +2481,7 @@ begin
   end;
 
   AtualizarOutboundPedido;
-  TDialogService.MessageDialog('Pedido gravado com sucesso.',
+  TDialogServiceAsync.MessageDialog('Pedido gravado com sucesso.',
     System.UITypes.TMsgDlgType.mtInformation,
     [System.UITypes.TMsgDlgBtn.mbOK],
     System.UITypes.TMsgDlgBtn.mbOK,

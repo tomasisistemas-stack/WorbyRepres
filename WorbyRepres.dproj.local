@@ -22,6 +22,6 @@
     <Transaction>2026/05/11 13:54:20.000.338,=C:\Tomasi Sistemas\WorbyRepres\App\unClienteCadastro.pas</Transaction>
   </Transactions>
 	<ActiveMobileDevice>
-		<NoProfile Android="teste_API_22" Android64="Pixel_8_Pro_API_35"/>
+		<NoProfile Android="Nexus_6" Android64="Nexus_6"/>
 	</ActiveMobileDevice>
 </BorlandProject>
