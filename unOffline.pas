@@ -36,7 +36,10 @@ type
     procedure tmConexaoTimer(Sender: TObject);
     procedure imgSairClick(Sender: TObject);
   private
+    procedure FormClose(Sender: TObject; var Action: TCloseAction);
     { Private declarations }
+  protected
+    procedure DoShow; override;
   public
     { Public declarations }
   end;
@@ -74,5 +77,16 @@ begin
     Close;
 end;
 
-end.
+procedure TfrmOffline.DoShow;
+begin
+  inherited;
+  OnClose := FormClose;
+end;
 
+procedure TfrmOffline.FormClose(Sender: TObject; var Action: TCloseAction);
+begin
+  Action := TCloseAction.caFree;
+  frmOffline := nil;
+end;
+
+end.

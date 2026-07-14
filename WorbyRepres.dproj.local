@@ -1,27 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <BorlandProject>
-	<Transactions>
-    <Transaction>2025/07/04 06:30:40.000.519,=C:\Users\TOMASI\Documents\Embarcadero\Studio\Projects\Unit6.pas</Transaction>
-    <Transaction>2025/07/10 22:37:04.000.893,=C:\Users\TOMASI\Documents\Embarcadero\Studio\Projects\Unit6.pas</Transaction>
-    <Transaction>2026/03/05 08:01:37.000.572,=C:\Users\TOMASI\Documents\Embarcadero\Studio\Projects\Unit6.pas</Transaction>
-    <Transaction>2026/03/10 12:07:35.000.634,=C:\Users\TOMASI\Documents\Embarcadero\Studio\Projects\Unit6.pas</Transaction>
-    <Transaction>2026/03/27 07:49:52.000.008,=C:\Users\TOMASI\Documents\Embarcadero\Studio\Projects\Unit6.pas</Transaction>
-    <Transaction>2026/03/27 07:50:23.000.973,C:\Users\TOMASI\Documents\Embarcadero\Studio\Projects\Project4.dproj=C:\Tomasi Sistemas\WorbyRep\App\WorbyRepres.dproj</Transaction>
-    <Transaction>2026/03/27 07:52:11.000.058,=C:\Tomasi Sistemas\WorbyRep\App\unLogin.pas</Transaction>
-    <Transaction>2026/03/27 07:52:25.000.408,=C:\Tomasi Sistemas\WorbyRep\App\unPrincipal.pas</Transaction>
-    <Transaction>2026/03/27 07:52:37.000.277,=C:\Tomasi Sistemas\WorbyRep\App\unDMApp.pas</Transaction>
-    <Transaction>2026/03/27 07:52:51.000.769,=C:\Tomasi Sistemas\WorbyRep\App\unSync.pas</Transaction>
-    <Transaction>2026/03/27 07:53:02.000.830,=C:\Tomasi Sistemas\WorbyRep\App\unClientes.pas</Transaction>
-    <Transaction>2026/03/27 07:53:13.000.426,=C:\Tomasi Sistemas\WorbyRep\App\unClienteDetalhe.pas</Transaction>
-    <Transaction>2026/03/27 07:53:25.000.386,=C:\Tomasi Sistemas\WorbyRep\App\unPedido.pas</Transaction>
-    <Transaction>2026/03/27 07:53:34.000.768,=C:\Tomasi Sistemas\WorbyRep\App\unPedidoItem.pas</Transaction>
-    <Transaction>2026/03/27 10:59:25.000.331,=C:\Tomasi Sistemas\WorbyRep\App\unFuncoes.pas</Transaction>
-    <Transaction>2026/04/13 10:08:27.000.339,=C:\Tomasi Sistemas\WorbyRep\App\unFormaPgto.pas</Transaction>
-    <Transaction>2026/04/13 11:16:40.000.191,=C:\Tomasi Sistemas\WorbyRep\App\unPrazoPgto.pas</Transaction>
-    <Transaction>2026/04/29 14:16:17.000.639,=C:\Tomasi Sistemas\WorbyRepres\App\unPedidosEnviados.pas</Transaction>
-    <Transaction>2026/05/11 13:54:20.000.338,=C:\Tomasi Sistemas\WorbyRepres\App\unClienteCadastro.pas</Transaction>
-  </Transactions>
 	<ActiveMobileDevice>
-		<NoProfile Android="Nexus_6" Android64="Nexus_6"/>
+		<NoProfile Android64="Pixel_9_Pro" Android="Nexus_6"/>
 	</ActiveMobileDevice>
+	<BT_BuildType>Debug</BT_BuildType>
 </BorlandProject>

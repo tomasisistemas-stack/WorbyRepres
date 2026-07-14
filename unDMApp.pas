@@ -1,4 +1,4 @@
-ï»¿unit unDMApp;
+unit unDMApp;
 
 interface
 
@@ -43,10 +43,14 @@ type
     FRequestLogOk: Integer;
     FSkipConnectionCheck: Integer;
     FLastVendas1NumDocs: TStringList;
+    FSyncDownloadLastTick: Cardinal;
+    FSyncApplyLastTick: Cardinal;
     function BuildUrl(const AEndpoint: string): string;
     function DatabaseFileName: string;
     function ExecuteJsonArrayRequest(const AEndpoint: string; ABody: TJSONObject): TJSONArray;
     function ExecuteJsonObjectRequest(const AEndpoint: string; ABody: TJSONObject): TJSONObject;
+    function IsTransientHttpError(const AMessage: string): Boolean;
+    function NormalizeSyncStartDate(const AValue: string): string;
     function GetJsonValueCI(AObj: TJSONObject; const AName: string): TJSONValue;
     function GetApiBaseUrl: string;
     function GetScalarAsString(const ASql: string; const AParams: array of Variant): string;
@@ -58,8 +62,10 @@ type
     procedure AssignParamFromVariant(AParam: TFDParam; const AValue: Variant);
     procedure LogSyncSql(const ATable, ASql: string; AParams: TFDParams);
     procedure LogSyncSqlError(const ATable, ASql: string; AParams: TFDParams; const AError: string);
+    procedure HttpReceiveData(const Sender: TObject; AContentLength, AReadCount: Int64; var AAbort: Boolean);
     procedure EnsureDatabase;
     procedure ExecSQL(const ASql: string; const AParams: array of Variant);
+    procedure ApplySqliteScript(const AScript: string);
     procedure GetTableColumns(const ATableName: string; AColumns, ATypes: TStrings; AIncludeBlobs: Boolean = False);
     procedure LogRequest(const AMethod, AEndpoint, ARequest, AResponse: string; AStatusCode: Integer);
     function RequestLogAvailable: Boolean;
@@ -83,11 +89,23 @@ type
     function AddOutboundPedidoItem(const APedidoId: Integer; const AVendas2Json: string): Integer;
     function CountOutboundPedidoItens(const APedidoId: Integer): Integer;
     function IsDailySyncRequired(out AMessage: string): Boolean;
+    function GetMesesDashboard(ACodRepresentante: Integer): TJSONArray;
+    function GetMetaRepresentante(ACodRepresentante: Integer; const AMes: string): TJSONObject;
+    function GetPedidosFaturadosDashboard(ACodRepresentante: Integer; const AMes, AStatus: string;
+      ADiaInicial, ADiaFinal: Integer; const ABusca: string): TJSONObject;
     function SendPendingPedidos: Integer;
     function SyncTable(const ATableName, ACodRepresentante: string; ALimit: Integer): Integer;
     function SyncAllTables(const ACodRepresentante: string): Integer;
     function SyncAllTablesSelected(const ACodRepresentante: string; const ATables: array of string): Integer;
+    function SyncAllTablesSelectedByScript(const ACodRepresentante: string; const ATables: array of string): Integer;
     procedure SetSyncTableError(const ATableName, ACodRepresentante, AError: string);
+    procedure SetAppConfigValue(const AKey, AValue: string);
+    procedure SetAppState(const AScreen: string; APedidoId: Integer; const AExtraJson: string);
+    procedure ClearAppState(const AScreen: string);
+    function GetAppState(out AScreen: string; out APedidoId: Integer; out AExtraJson: string): Boolean;
+    procedure EnviarGeolocalizacao(ACodRepresentante: Integer; const AUsuario: string; ALatitude, ALongitude: Double);
+    procedure RegistrarGeolocalizacao(ACodRepresentante: Integer; ALatitude, ALongitude, AVelocidadeKmh: Double);
+    procedure EnviarPendentesBackground;
     property ApiBaseUrl: string read GetApiBaseUrl write SetApiBaseUrl;
   end;
 
@@ -101,6 +119,7 @@ implementation
 {$R *.dfm}
 
 uses
+  System.Math,
   unFuncoes;
 
 
@@ -109,6 +128,13 @@ const
     'CREATE TABLE IF NOT EXISTS app_config (' +
     ' key TEXT PRIMARY KEY,' +
     ' value TEXT,' +
+    ' updated_at TEXT DEFAULT CURRENT_TIMESTAMP' +
+    ');' +
+    'CREATE TABLE IF NOT EXISTS app_state (' +
+    ' id INTEGER PRIMARY KEY CHECK (id = 1),' +
+    ' screen TEXT,' +
+    ' pedido_id INTEGER DEFAULT 0,' +
+    ' extra_json TEXT,' +
     ' updated_at TEXT DEFAULT CURRENT_TIMESTAMP' +
     ');' +
     'CREATE TABLE IF NOT EXISTS api_session (' +
@@ -262,7 +288,33 @@ const
     ' whastapp TEXT,' +
     ' pronautica TEXT,' +
     ' proemprego TEXT,' +
-    ' saldo REAL' +
+    ' saldo REAL,' +
+    ' latitude REAL,' +
+    ' longitude REAL' +
+    ');' +
+    'CREATE TABLE IF NOT EXISTS representante_localizacao (' +
+    ' id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    ' cod_representante INTEGER NOT NULL,' +
+    ' datahora TEXT NOT NULL,' +
+    ' velocidade REAL,' +
+    ' latitude REAL NOT NULL,' +
+    ' longitude REAL NOT NULL,' +
+    ' enviado TEXT DEFAULT ''N'',' +
+    ' sent_at TEXT,' +
+    ' last_error TEXT' +
+    ');' +
+    'CREATE TABLE IF NOT EXISTS cliente_visitas (' +
+    ' cod_cliente INTEGER NOT NULL,' +
+    ' data TEXT NOT NULL,' +
+    ' vendeu TEXT,' +
+    ' enviado TEXT DEFAULT ''N'',' +
+    ' motivo_n_venda BLOB,' +
+    ' valor_pedido REAL,' +
+    ' datahora TEXT NOT NULL,' +
+    ' cod_representante INTEGER,' +
+    ' sent_at TEXT,' +
+    ' last_error TEXT,' +
+    ' PRIMARY KEY(cod_cliente, datahora)' +
     ');' +
     'CREATE TABLE IF NOT EXISTS fop (' +
     ' cod_fop INTEGER PRIMARY KEY NOT NULL,' +
@@ -418,6 +470,20 @@ const
     ' alterou_imagem TEXT,' +
     ' id_marca INTEGER,' +
     ' video TEXT' +
+    ');' +
+    'CREATE TABLE IF NOT EXISTS grade_comissao (' +
+    ' id INTEGER,' +
+    ' tipo TEXT NOT NULL,' +
+    ' inicio REAL,' +
+    ' fim REAL,' +
+    ' comissao_interno REAL,' +
+    ' comissao_outros REAL,' +
+    ' PRIMARY KEY (tipo, inicio, fim)' +
+    ');' +
+    'CREATE TABLE IF NOT EXISTS escala_comissao (' +
+    ' desconto REAL NOT NULL PRIMARY KEY,' +
+    ' perc_comissao_terc REAL,' +
+    ' perc_comissao_func REAL' +
     ');' +
     'CREATE TABLE IF NOT EXISTS produto_representante (' +
     ' cod_produto INTEGER NOT NULL,' +
@@ -943,7 +1009,7 @@ end;
 
 function TdmApp.ShouldClearSyncData(out AReason: string): Boolean;
 const
-  CSyncResetVersion = '2026-04-29-1';
+  CSyncResetVersion = '2026-06-12-escala-comissao-1';
 var
   LQuery: TFDQuery;
   LCurrentVersion: string;
@@ -1017,9 +1083,12 @@ procedure TdmApp.DataModuleCreate(Sender: TObject);
 begin
   FDConnection.DriverName := 'SQLite';
   FHttp := THTTPClient.Create;
+  FHttp.ConnectionTimeout := 15000;
+  FHttp.ResponseTimeout := 600000;
   FLastVendas1NumDocs := TStringList.Create;
   FLastVendas1NumDocs.Sorted := True;
   FLastVendas1NumDocs.Duplicates := dupIgnore;
+  FHttp.CustomHeaders['Content-Type'] := 'application/json';
   FHttp.CustomHeaders['Accept-Encoding'] := 'gzip, deflate';
   FHttp.Accept := 'application/json';
   OpenConnection;
@@ -1054,6 +1123,33 @@ procedure TdmApp.EnsureDatabase;
 var
   LStatements: TStringList;
   I: Integer;
+
+  function ColumnExists(const ATableName, AColumnName: string): Boolean;
+  var
+    LQuery: TFDQuery;
+  begin
+    Result := False;
+    LQuery := TFDQuery.Create(nil);
+    try
+      LQuery.Connection := FDConnection;
+      LQuery.SQL.Text := 'PRAGMA table_info("' + ATableName + '")';
+      LQuery.Open;
+      while not LQuery.Eof do
+      begin
+        if SameText(LQuery.FieldByName('name').AsString, AColumnName) then
+          Exit(True);
+        LQuery.Next;
+      end;
+    finally
+      LQuery.Free;
+    end;
+  end;
+
+  procedure AddColumnIfMissing(const ATableName, AColumnName, AColumnSql: string);
+  begin
+    if not ColumnExists(ATableName, AColumnName) then
+      FDConnection.ExecSQL('alter table "' + ATableName + '" add column ' + AColumnSql);
+  end;
 begin
   LStatements := TStringList.Create;
   try
@@ -1061,11 +1157,19 @@ begin
     for I := 0 to LStatements.Count - 1 do
       if Trim(LStatements[I]) <> '' then
         FDConnection.ExecSQL(Trim(LStatements[I]));
-    try
-      FDConnection.ExecSQL('alter table api_session add column senha TEXT');
-    except
-      // ignore if column already exists
-    end;
+    AddColumnIfMissing('api_session', 'senha', 'senha TEXT');
+    AddColumnIfMissing('cliente', 'latitude', 'latitude REAL');
+    AddColumnIfMissing('cliente', 'longitude', 'longitude REAL');
+    AddColumnIfMissing('produto', 'promocao', 'promocao TEXT');
+    AddColumnIfMissing('produto', 'preco_promocao', 'preco_promocao REAL');
+    AddColumnIfMissing('produto_representante', 'qtd_promocao', 'qtd_promocao REAL');
+    AddColumnIfMissing('produto_representante', 'preco_promocao', 'preco_promocao REAL');
+    AddColumnIfMissing('representante_localizacao', 'enviado', 'enviado TEXT default ''N''');
+    AddColumnIfMissing('representante_localizacao', 'sent_at', 'sent_at TEXT');
+    AddColumnIfMissing('representante_localizacao', 'last_error', 'last_error TEXT');
+    AddColumnIfMissing('cliente_visitas', 'enviado', 'enviado TEXT default ''N''');
+    AddColumnIfMissing('cliente_visitas', 'sent_at', 'sent_at TEXT');
+    AddColumnIfMissing('cliente_visitas', 'last_error', 'last_error TEXT');
   finally
     LStatements.Free;
   end;
@@ -1118,6 +1222,126 @@ begin
   end;
 end;
 
+procedure TdmApp.ApplySqliteScript(const AScript: string);
+var
+  I: Integer;
+  LStmt: TStringBuilder;
+  LInString: Boolean;
+  LCh: Char;
+  LSql: string;
+  LTotalStatements: Integer;
+  LAppliedStatements: Integer;
+
+  function CountStatements: Integer;
+  var
+    J: Integer;
+    LCountInString: Boolean;
+    LCountCh: Char;
+    LHasContent: Boolean;
+  begin
+    Result := 0;
+    LCountInString := False;
+    LHasContent := False;
+    J := 1;
+    while J <= Length(AScript) do
+    begin
+      LCountCh := AScript[J];
+      if LCountCh = '''' then
+      begin
+        LHasContent := True;
+        if LCountInString and (J < Length(AScript)) and (AScript[J + 1] = '''') then
+          Inc(J)
+        else
+          LCountInString := not LCountInString;
+      end
+      else if (LCountCh = ';') and (not LCountInString) then
+      begin
+        if LHasContent then
+        begin
+          Inc(Result);
+          LHasContent := False;
+        end;
+      end
+      else if not CharInSet(LCountCh, [#9, #10, #13, ' ']) then
+        LHasContent := True;
+      Inc(J);
+    end;
+    if LHasContent then
+      Inc(Result);
+  end;
+
+  procedure ReportApplyProgress(const AForce: Boolean);
+  var
+    LNow: Cardinal;
+  begin
+    if not Assigned(FOnSyncProgress) then
+      Exit;
+    if LTotalStatements <= 0 then
+      Exit;
+
+    LNow := TThread.GetTickCount;
+    if (not AForce) and (LAppliedStatements < LTotalStatements) and
+       (FSyncApplyLastTick <> 0) and ((LNow - FSyncApplyLastTick) < 250) then
+      Exit;
+    FSyncApplyLastTick := LNow;
+
+    FOnSyncProgress('__script_apply', LAppliedStatements, LTotalStatements, False);
+  end;
+
+  procedure ExecuteCurrentStatement;
+  begin
+    LSql := Trim(LStmt.ToString);
+    LStmt.Clear;
+    if LSql = '' then
+      Exit;
+    FDConnection.ExecSQL(LSql);
+    Inc(LAppliedStatements);
+    ReportApplyProgress(False);
+  end;
+
+begin
+  LStmt := TStringBuilder.Create;
+  try
+    try
+      LTotalStatements := CountStatements;
+      LAppliedStatements := 0;
+      FSyncApplyLastTick := 0;
+      ReportApplyProgress(True);
+
+      LInString := False;
+      I := 1;
+      while I <= Length(AScript) do
+      begin
+        LCh := AScript[I];
+        if LCh = '''' then
+        begin
+          LStmt.Append(LCh);
+          if LInString and (I < Length(AScript)) and (AScript[I + 1] = '''') then
+          begin
+            Inc(I);
+            LStmt.Append(AScript[I]);
+          end
+          else
+            LInString := not LInString;
+        end
+        else if (LCh = ';') and (not LInString) then
+          ExecuteCurrentStatement
+        else
+          LStmt.Append(LCh);
+        Inc(I);
+      end;
+      ExecuteCurrentStatement;
+      ReportApplyProgress(True);
+    except
+      if FDConnection.InTransaction then
+        FDConnection.Rollback;
+      raise;
+    end;
+  finally
+    LStmt.Free;
+  end;
+end;
+
 function TdmApp.TableExists(const ATableName: string): Boolean;
 var
   LQuery: TFDQuery;
@@ -1162,9 +1386,6 @@ var
   LLogResponse: string;
   LValue: TJSONValue;
 begin
-  if (FSkipConnectionCheck <= 0) and (not ChecarConexao) then
-    raise Exception.Create('Sem conexao com o servidor.');
-
   LRequest := TStringStream.Create(ABody.ToJSON, TEncoding.UTF8);
   try
     LResponse := FHttp.Post(BuildUrl(AEndpoint), LRequest);
@@ -1193,38 +1414,429 @@ begin
     LRequest.Free;
   end;
 end;
+function TdmApp.IsTransientHttpError(const AMessage: string): Boolean;
+var
+  LMsg: string;
+begin
+  LMsg := LowerCase(AMessage);
+  Result := (Pos('socketexception', LMsg) > 0) or
+            (Pos('connection abort', LMsg) > 0) or
+            (Pos('connection reset', LMsg) > 0) or
+            (Pos('connection closed', LMsg) > 0) or
+            (Pos('software caused connection abort', LMsg) > 0) or
+            (Pos('timeout', LMsg) > 0) or
+            (Pos('timed out', LMsg) > 0) or
+            (Pos('sockettimeoutexception', LMsg) > 0) or
+            (Pos('eof', LMsg) > 0);
+end;
 function TdmApp.ExecuteJsonObjectRequest(const AEndpoint: string; ABody: TJSONObject): TJSONObject;
+const
+  CSyncScriptMaxAttempts = 3;
 var
   LRequest: TStringStream;
   LResponse: IHTTPResponse;
   LText: string;
   LLogResponse: string;
   LValue: TJSONValue;
+  LOldReceiveData: TReceiveDataEvent;
+  LUseReceiveProgress: Boolean;
+  LAttempt: Integer;
+  LMaxAttempts: Integer;
+  LBodyText: string;
 begin
-  if (FSkipConnectionCheck <= 0) and (not ChecarConexao) then
-    raise Exception.Create('Sem conexao com o servidor.');
+  Result := nil;
+  LBodyText := ABody.ToJSON;
+  LUseReceiveProgress := SameText(AEndpoint, 'api/sync_script') and Assigned(FOnSyncProgress);
+  if SameText(AEndpoint, 'api/sync_script') then
+    LMaxAttempts := CSyncScriptMaxAttempts
+  else
+    LMaxAttempts := 1;
 
-  LRequest := TStringStream.Create(ABody.ToJSON, TEncoding.UTF8);
-  try
-    LResponse := FHttp.Post(BuildUrl(AEndpoint), LRequest);
-    LText := LResponse.ContentAsString(TEncoding.UTF8);
-    LLogResponse := LText;
-    if SameText(AEndpoint, 'api/sync_all') and (Length(LLogResponse) > 512) then
-      LLogResponse := Copy(LLogResponse, 1, 512) + '... [len=' + Length(LText).ToString + ']';
-    LogRequest('POST', AEndpoint, ABody.ToJSON, LLogResponse, LResponse.StatusCode);
-    if (LResponse.StatusCode < 200) or (LResponse.StatusCode >= 300) then
-      raise Exception.CreateFmt('HTTP %d: %s', [LResponse.StatusCode, LText]);
-    LValue := TJSONObject.ParseJSONValue(LText);
-    if not Assigned(LValue) then
-      raise Exception.Create('Resposta JSON vazia para ' + AEndpoint);
-    if not (LValue is TJSONObject) then
-    begin
-      LValue.Free;
-      raise Exception.Create('Resposta JSON invalida para ' + AEndpoint);
+  for LAttempt := 1 to LMaxAttempts do
+  begin
+    LRequest := TStringStream.Create(LBodyText, TEncoding.UTF8);
+    LOldReceiveData := FHttp.OnReceiveData;
+    try
+      if LUseReceiveProgress then
+      begin
+        FSyncDownloadLastTick := 0;
+        FHttp.OnReceiveData := HttpReceiveData;
+        if LAttempt > 1 then
+          FOnSyncProgress('__script_download', 0, 0, False);
+      end;
+
+      try
+        LResponse := FHttp.Post(BuildUrl(AEndpoint), LRequest);
+        LText := LResponse.ContentAsString(TEncoding.UTF8);
+        LLogResponse := LText;
+        if (SameText(AEndpoint, 'api/sync_all') or SameText(AEndpoint, 'api/sync_script')) and
+           (Length(LLogResponse) > 512) then
+          LLogResponse := Copy(LLogResponse, 1, 512) + '... [len=' + Length(LText).ToString + ']';
+        LogRequest('POST', AEndpoint, LBodyText, LLogResponse, LResponse.StatusCode);
+        if (LResponse.StatusCode < 200) or (LResponse.StatusCode >= 300) then
+          raise Exception.CreateFmt('HTTP %d: %s', [LResponse.StatusCode, LText]);
+        LValue := TJSONObject.ParseJSONValue(LText);
+        if not Assigned(LValue) then
+          raise Exception.Create('Resposta JSON vazia para ' + AEndpoint);
+        if not (LValue is TJSONObject) then
+        begin
+          LValue.Free;
+          raise Exception.Create('Resposta JSON invalida para ' + AEndpoint);
+        end;
+        Result := TJSONObject(LValue);
+        Exit;
+      except
+        on E: Exception do
+        begin
+          LogRequest('POST', AEndpoint, LBodyText, 'ERRO tentativa ' + LAttempt.ToString + ': ' + E.Message, 0);
+          if (LAttempt < LMaxAttempts) and IsTransientHttpError(E.Message) then
+          begin
+            TThread.Sleep(1500 * LAttempt);
+            Continue;
+          end;
+          raise;
+        end;
+      end;
+    finally
+      if LUseReceiveProgress then
+        FHttp.OnReceiveData := LOldReceiveData;
+      LRequest.Free;
     end;
-    Result := TJSONObject(LValue);
+  end;
+end;
+procedure TdmApp.HttpReceiveData(const Sender: TObject; AContentLength, AReadCount: Int64; var AAbort: Boolean);
+var
+  LNow: Cardinal;
+  LReadKb: Integer;
+  LTotalKb: Integer;
+begin
+  if not Assigned(FOnSyncProgress) then
+    Exit;
+
+  LNow := TThread.GetTickCount;
+  if (AContentLength > 0) and (AReadCount < AContentLength) and
+     (FSyncDownloadLastTick <> 0) and ((LNow - FSyncDownloadLastTick) < 250) then
+    Exit;
+  FSyncDownloadLastTick := LNow;
+
+  LReadKb := Trunc(AReadCount / 1024);
+  if (AReadCount > 0) and (LReadKb <= 0) then
+    LReadKb := 1;
+
+  if AContentLength > 0 then
+  begin
+    LTotalKb := Trunc(AContentLength / 1024);
+    if LTotalKb <= 0 then
+      LTotalKb := 1;
+    if LReadKb > LTotalKb then
+      LReadKb := LTotalKb;
+  end
+  else
+    LTotalKb := 0;
+
+  FOnSyncProgress('__script_download', LReadKb, LTotalKb, False);
+end;
+
+function TdmApp.NormalizeSyncStartDate(const AValue: string): string;
+var
+  LValue: string;
+begin
+  LValue := Trim(AValue);
+  Result := LValue;
+  if (Length(LValue) >= 10) and (LValue[5] = '-') and (LValue[8] = '-') then
+    Result := Copy(LValue, 1, 10) + ' 00:00:00';
+end;
+
+function TdmApp.GetMetaRepresentante(ACodRepresentante: Integer; const AMes: string): TJSONObject;
+var
+  LBody: TJSONObject;
+begin
+  LBody := TJSONObject.Create;
+  try
+    LBody.AddPair('codRepresentante', TJSONNumber.Create(ACodRepresentante));
+    LBody.AddPair('mes', AMes);
+    Result := ExecuteJsonObjectRequest('api/dashboard/meta', LBody);
   finally
-    LRequest.Free;
+    LBody.Free;
+  end;
+end;
+
+function TdmApp.GetMesesDashboard(ACodRepresentante: Integer): TJSONArray;
+var
+  LBody: TJSONObject;
+begin
+  LBody := TJSONObject.Create;
+  try
+    LBody.AddPair('codRepresentante', TJSONNumber.Create(ACodRepresentante));
+    Result := ExecuteJsonArrayRequest('api/dashboard/meses', LBody);
+  finally
+    LBody.Free;
+  end;
+end;
+
+function TdmApp.GetPedidosFaturadosDashboard(ACodRepresentante: Integer; const AMes, AStatus: string;
+  ADiaInicial, ADiaFinal: Integer; const ABusca: string): TJSONObject;
+var
+  LBody: TJSONObject;
+begin
+  LBody := TJSONObject.Create;
+  try
+    LBody.AddPair('codRepresentante', TJSONNumber.Create(ACodRepresentante));
+    LBody.AddPair('mes', AMes);
+    LBody.AddPair('status', AStatus);
+    LBody.AddPair('diaInicial', TJSONNumber.Create(ADiaInicial));
+    LBody.AddPair('diaFinal', TJSONNumber.Create(ADiaFinal));
+    LBody.AddPair('busca', ABusca);
+    Result := ExecuteJsonObjectRequest('api/dashboard/pedidos_faturados', LBody);
+  finally
+    LBody.Free;
+  end;
+end;
+
+procedure TdmApp.EnviarGeolocalizacao(ACodRepresentante: Integer; const AUsuario: string; ALatitude, ALongitude: Double);
+var
+  LBody: TJSONObject;
+  LResponse: TJSONObject;
+begin
+  LBody := TJSONObject.Create;
+  try
+    LBody.AddPair('cod_representante', TJSONNumber.Create(ACodRepresentante));
+    LBody.AddPair('usuario', AUsuario);
+    LBody.AddPair('data_hora', FormatDateTime('yyyy-mm-dd hh:nn:ss', Now));
+    LBody.AddPair('latitude', TJSONNumber.Create(ALatitude));
+    LBody.AddPair('longitude', TJSONNumber.Create(ALongitude));
+
+    LResponse := ExecuteJsonObjectRequest('api/geolocalizacao', LBody);
+    LResponse.Free;
+  finally
+    LBody.Free;
+  end;
+end;
+
+procedure TdmApp.RegistrarGeolocalizacao(ACodRepresentante: Integer; ALatitude, ALongitude, AVelocidadeKmh: Double);
+const
+  CEarthRadiusMeters = 6371000.0;
+  CVisitRadiusMeters = 100.0;
+  CVisitMinMinutes = 30.0;
+  CMinLocationChangeMeters = 5.0;
+var
+  LDataHora: string;
+  LData: string;
+  LLastLocationQuery: TFDQuery;
+  LClienteQuery: TFDQuery;
+  LLastLat: Double;
+  LLastLon: Double;
+  LCodCliente: Integer;
+  LClienteLat: Double;
+  LClienteLon: Double;
+  LDistance: Double;
+  LNearestCliente: Integer;
+  LNearestDistance: Double;
+  LRecentVisits: Int64;
+  LShouldRegisterLocation: Boolean;
+
+  function DistanceMeters(ALat1, ALon1, ALat2, ALon2: Double): Double;
+  var
+    LDLat: Double;
+    LDLon: Double;
+    LA: Double;
+    LC: Double;
+  begin
+    LDLat := DegToRad(ALat2 - ALat1);
+    LDLon := DegToRad(ALon2 - ALon1);
+    LA := Sin(LDLat / 2) * Sin(LDLat / 2) +
+      Cos(DegToRad(ALat1)) * Cos(DegToRad(ALat2)) *
+      Sin(LDLon / 2) * Sin(LDLon / 2);
+    LC := 2 * ArcTan2(Sqrt(LA), Sqrt(1 - LA));
+    Result := CEarthRadiusMeters * LC;
+  end;
+begin
+  if ACodRepresentante <= 0 then
+    Exit;
+  if Double.IsNan(ALatitude) or Double.IsNan(ALongitude) then
+    Exit;
+  if FDConnection.InTransaction then
+    Exit;
+
+  LDataHora := FormatDateTime('yyyy-mm-dd hh:nn:ss', Now);
+  LData := FormatDateTime('yyyy-mm-dd', Date);
+  LNearestCliente := 0;
+  LNearestDistance := MaxDouble;
+
+  try
+    TMonitor.Enter(Self);
+    try
+      if FDConnection.InTransaction then
+        Exit;
+
+      LShouldRegisterLocation := True;
+      LLastLocationQuery := TFDQuery.Create(nil);
+      try
+        LLastLocationQuery.Connection := FDConnection;
+        LLastLocationQuery.SQL.Text :=
+          'select latitude, longitude from representante_localizacao ' +
+          'where cod_representante = :p0 ' +
+          'order by id desc limit 1';
+        LLastLocationQuery.ParamByName('p0').AsInteger := ACodRepresentante;
+        LLastLocationQuery.Open;
+        if not LLastLocationQuery.Eof then
+        begin
+          LLastLat := LLastLocationQuery.FieldByName('latitude').AsFloat;
+          LLastLon := LLastLocationQuery.FieldByName('longitude').AsFloat;
+          LShouldRegisterLocation :=
+            DistanceMeters(ALatitude, ALongitude, LLastLat, LLastLon) >= CMinLocationChangeMeters;
+        end;
+      finally
+        LLastLocationQuery.Free;
+      end;
+
+      if LShouldRegisterLocation then
+        ExecSQL(
+          'insert into representante_localizacao (cod_representante, datahora, velocidade, latitude, longitude, enviado) ' +
+          'values (:p0, :p1, :p2, :p3, :p4, ''N'')',
+          [ACodRepresentante, LDataHora, AVelocidadeKmh, ALatitude, ALongitude]
+        );
+
+      if AVelocidadeKmh < 1 then
+      begin
+        LClienteQuery := TFDQuery.Create(nil);
+        try
+          LClienteQuery.Connection := FDConnection;
+          LClienteQuery.SQL.Text :=
+            'select cod_cliente, latitude, longitude from cliente ' +
+            'where latitude is not null and longitude is not null';
+          LClienteQuery.Open;
+          while not LClienteQuery.Eof do
+          begin
+            LCodCliente := LClienteQuery.FieldByName('cod_cliente').AsInteger;
+            LClienteLat := LClienteQuery.FieldByName('latitude').AsFloat;
+            LClienteLon := LClienteQuery.FieldByName('longitude').AsFloat;
+            LDistance := DistanceMeters(ALatitude, ALongitude, LClienteLat, LClienteLon);
+            if LDistance < LNearestDistance then
+            begin
+              LNearestDistance := LDistance;
+              LNearestCliente := LCodCliente;
+            end;
+            LClienteQuery.Next;
+          end;
+        finally
+          LClienteQuery.Free;
+        end;
+
+        if (LNearestCliente > 0) and (LNearestDistance <= CVisitRadiusMeters) then
+        begin
+          LRecentVisits := GetScalarInt64(
+            'select count(*) from cliente_visitas ' +
+            'where cod_cliente = :p0 and datetime(datahora) >= datetime(:p1, ''-' + FormatFloat('0', CVisitMinMinutes) + ' minutes'')',
+            [LNearestCliente, LDataHora]
+          );
+          if LRecentVisits = 0 then
+            ExecSQL(
+              'insert or ignore into cliente_visitas ' +
+              '(cod_cliente, data, vendeu, enviado, valor_pedido, datahora, cod_representante) ' +
+              'values (:p0, :p1, ''N'', ''N'', 0, :p2, :p3)',
+              [LNearestCliente, LData, LDataHora, ACodRepresentante]
+            );
+        end;
+      end;
+    finally
+      TMonitor.Exit(Self);
+    end;
+  except
+    // Se o SQLite estiver ocupado pela sincronizacao, descarta somente esta posicao.
+    Exit;
+  end;
+
+  if not FDConnection.InTransaction then
+    EnviarPendentesBackground;
+end;
+
+procedure TdmApp.EnviarPendentesBackground;
+var
+  LQuery: TFDQuery;
+  LBody: TJSONObject;
+  LResponse: TJSONObject;
+begin
+  if FDConnection.InTransaction then
+    Exit;
+
+  TMonitor.Enter(Self);
+  try
+    if FDConnection.InTransaction then
+      Exit;
+
+    Inc(FSkipConnectionCheck);
+    try
+      LQuery := TFDQuery.Create(nil);
+      try
+        LQuery.Connection := FDConnection;
+
+        LQuery.SQL.Text :=
+          'select id, cod_representante, datahora, velocidade, latitude, longitude ' +
+          'from representante_localizacao where coalesce(enviado, ''N'') <> ''S'' order by id limit 100';
+        LQuery.Open;
+        while not LQuery.Eof do
+        begin
+          LBody := TJSONObject.Create;
+          try
+            LBody.AddPair('id', TJSONNumber.Create(LQuery.FieldByName('id').AsLargeInt));
+            LBody.AddPair('cod_representante', TJSONNumber.Create(LQuery.FieldByName('cod_representante').AsInteger));
+            LBody.AddPair('datahora', LQuery.FieldByName('datahora').AsString);
+            LBody.AddPair('velocidade', TJSONNumber.Create(LQuery.FieldByName('velocidade').AsFloat));
+            LBody.AddPair('latitude', TJSONNumber.Create(LQuery.FieldByName('latitude').AsFloat));
+            LBody.AddPair('longitude', TJSONNumber.Create(LQuery.FieldByName('longitude').AsFloat));
+            LResponse := ExecuteJsonObjectRequest('api/geolocalizacao', LBody);
+            LResponse.Free;
+            ExecSQL(
+              'update representante_localizacao set enviado = ''S'', sent_at = datetime(''now''), last_error = null where id = :p0',
+              [LQuery.FieldByName('id').AsLargeInt]
+            );
+          except
+            on E: Exception do
+              ExecSQL('update representante_localizacao set last_error = :p0 where id = :p1',
+                [E.Message, LQuery.FieldByName('id').AsLargeInt]);
+          end;
+          LBody.Free;
+          LQuery.Next;
+        end;
+        LQuery.Close;
+
+        LQuery.SQL.Text :=
+          'select cod_cliente, data, vendeu, valor_pedido, datahora, cod_representante ' +
+          'from cliente_visitas where coalesce(enviado, ''N'') <> ''S'' order by datahora limit 100';
+        LQuery.Open;
+        while not LQuery.Eof do
+        begin
+          LBody := TJSONObject.Create;
+          try
+            LBody.AddPair('cod_cliente', TJSONNumber.Create(LQuery.FieldByName('cod_cliente').AsInteger));
+            LBody.AddPair('data', LQuery.FieldByName('data').AsString);
+            LBody.AddPair('vendeu', LQuery.FieldByName('vendeu').AsString);
+            LBody.AddPair('valor_pedido', TJSONNumber.Create(LQuery.FieldByName('valor_pedido').AsFloat));
+            LBody.AddPair('datahora', LQuery.FieldByName('datahora').AsString);
+            LBody.AddPair('cod_representante', TJSONNumber.Create(LQuery.FieldByName('cod_representante').AsInteger));
+            LResponse := ExecuteJsonObjectRequest('api/cliente_visita', LBody);
+            LResponse.Free;
+            ExecSQL(
+              'update cliente_visitas set enviado = ''S'', sent_at = datetime(''now''), last_error = null where cod_cliente = :p0 and datahora = :p1',
+              [LQuery.FieldByName('cod_cliente').AsInteger, LQuery.FieldByName('datahora').AsString]
+            );
+          except
+            on E: Exception do
+              ExecSQL('update cliente_visitas set last_error = :p0 where cod_cliente = :p1 and datahora = :p2',
+                [E.Message, LQuery.FieldByName('cod_cliente').AsInteger, LQuery.FieldByName('datahora').AsString]);
+          end;
+          LBody.Free;
+          LQuery.Next;
+        end;
+      finally
+        LQuery.Free;
+      end;
+    finally
+      Dec(FSkipConnectionCheck);
+    end;
+  finally
+    TMonitor.Exit(Self);
   end;
 end;
 
@@ -1238,7 +1850,8 @@ begin
     Exit;
 
  // Result := 'http://plasfan.ddns.com.br:9000';
-//  Result := 'http://localhost:9000';
+ // Result := 'http://localhost:9000';
+
   LQuery := TFDQuery.Create(nil);
   try
     LQuery.Connection := FDConnection;
@@ -1250,16 +1863,21 @@ begin
     if not LQuery.IsEmpty then
     begin
       LValue := Trim(LQuery.Fields[0].AsString);
+
       if SameText(LValue, 'PLASFAN') then
-        Result := 'http://plasfan.ddns.com.br:9000'
-      else if SameText(LValue, 'FILHO DO CRIADOR') or SameText(LValue, 'FILHO DO CRIADOR') then
+//        Result := 'http://localhost:9000'
         Result := 'http://plasfan.ddns.com.br:9004'
+{      else if SameText(LValue, 'PLASFAN - TESTES') then
+        Result := 'http://plasfan.ddns.com.br:9004'
+      else if SameText(LValue, 'FILHO DO CRIADOR') or SameText(LValue, 'FILHO DO CRIADOR') then
+        Result := 'http://plasfan.ddns.com.br:9004'}
       else if LValue <> '' then
         Result := LValue;
     end;
   finally
     LQuery.Free;
   end;
+
 end;
 
 function TdmApp.GetScalarInt64(const ASql: string; const AParams: array of Variant): Int64;
@@ -1378,7 +1996,7 @@ begin
   end;
 
   if Result then
-    AMessage := 'SincronizaÃ§Ã£o diÃ¡ria obrigatÃ³ria antes de mexer nos pedidos.';
+    AMessage := 'Sincronização diária obrigatória antes de mexer nos pedidos.';
 end;
 
 function TdmApp.ListCachedTables: TJSONArray;
@@ -1596,6 +2214,14 @@ begin
     'update api_session set base_url = :p0, login = :p1, senha = :p2, user_json = :p3, last_login_at = datetime(''now''), last_error = null where id = 1',
     [ApiBaseUrl, ALogin, ASenha, Result.ToJSON]
   );
+
+  if LNewRep > 0 then
+    ExecSQL(
+      'insert into app_config (key, value, updated_at) values (:p0, :p1, datetime(''now'')) ' +
+      'on conflict(key) do update set value = excluded.value, updated_at = excluded.updated_at',
+      ['cod_representante', LNewRep.ToString]
+    );
+
 end;
 
 procedure TdmApp.OpenConnection;
@@ -1632,6 +2258,11 @@ begin
   FDConnection.Params.Add('Database=' + LDbPath);
   FDConnection.LoginPrompt := False;
   FDConnection.Connected := True;
+  try
+    FDConnection.ExecSQL('PRAGMA busy_timeout = 5000');
+  except
+    // segue sem timeout customizado se o driver nao aceitar o pragma
+  end;
 end;
 
 function TdmApp.NormalizeVendas1Json(const AVendas1Json: string): string;
@@ -1656,7 +2287,7 @@ begin
     LPair.Free;
   LObj.AddPair('pedido_vendedor', '1');
 
-  // Campo obrigatÃ³rio no PostgreSQL
+  // Campo obrigatório no PostgreSQL
   LVal := LObj.GetValue('cod_empresa');
   if (not Assigned(LVal)) or (LVal is TJSONNull) or (Trim(LVal.Value) = '') then
   begin
@@ -1832,7 +2463,7 @@ end;
 function TdmApp.AddOutboundPedidoItem(const APedidoId: Integer; const AVendas2Json: string): Integer;
 begin
   if APedidoId <= 0 then
-    raise Exception.Create('Pedido outbound invÃ¡lido.');
+    raise Exception.Create('Pedido outbound inválido.');
 
   Result := GetScalarInt64(
     'select coalesce(max(item_ord), 0) + 1 from outbound_pedido_item where pedido_id = :p0',
@@ -2281,6 +2912,7 @@ end;
 procedure TdmApp.SeedConfig;
 begin
   ExecSQL('insert or ignore into api_session (id, base_url) values (1, :p0)', ['http://localhost:9000']);
+  ExecSQL('insert or ignore into app_state (id, screen, pedido_id, extra_json) values (1, '''', 0, '''')', []);
   ExecSQL('insert or ignore into app_config (key, value) values (:p0, :p1)', ['api_base_url', 'http://localhost:9000']);
   ExecSQL('insert or ignore into sync_table_state (table_name) values (:p0)', ['representante']);
   ExecSQL('insert or ignore into sync_table_state (table_name) values (:p0)', ['cliente']);
@@ -2301,14 +2933,66 @@ procedure TdmApp.SetApiBaseUrl(const AValue: string);
 begin
   FDConnection.DriverName := 'SQLite';
   ApiBaseUrlOverride := AValue;
-  ExecSQL(
-    'insert into app_config (key, value, updated_at) values (:p0, :p1, datetime(''now'')) ' +
-    'on conflict(key) do update set value = excluded.value, updated_at = excluded.updated_at',
-    ['api_base_url', AValue]
-  );
+  SetAppConfigValue('api_base_url', AValue);
   ExecSQL('update api_session set base_url = :p0 where id = 1', [AValue]);
 end;
 
+procedure TdmApp.SetAppConfigValue(const AKey, AValue: string);
+begin
+  ExecSQL(
+    'insert into app_config (key, value, updated_at) values (:p0, :p1, datetime(''now'')) ' +
+    'on conflict(key) do update set value = excluded.value, updated_at = excluded.updated_at',
+    [AKey, AValue]
+  );
+end;
+
+procedure TdmApp.SetAppState(const AScreen: string; APedidoId: Integer; const AExtraJson: string);
+begin
+  ExecSQL(
+    'insert into app_state (id, screen, pedido_id, extra_json, updated_at) values (1, :p0, :p1, :p2, datetime(''now'')) ' +
+    'on conflict(id) do update set screen = excluded.screen, pedido_id = excluded.pedido_id, ' +
+    'extra_json = excluded.extra_json, updated_at = excluded.updated_at',
+    [AScreen, APedidoId, AExtraJson]
+  );
+end;
+
+procedure TdmApp.ClearAppState(const AScreen: string);
+begin
+  if Trim(AScreen) = '' then
+    ExecSQL('update app_state set screen = '''', pedido_id = 0, extra_json = '''', updated_at = datetime(''now'') where id = 1', [])
+  else
+    ExecSQL(
+      'update app_state set screen = '''', pedido_id = 0, extra_json = '''', updated_at = datetime(''now'') where id = 1 and screen = :p0',
+      [AScreen]
+    );
+end;
+
+function TdmApp.GetAppState(out AScreen: string; out APedidoId: Integer; out AExtraJson: string): Boolean;
+var
+  LQuery: TFDQuery;
+begin
+  Result := False;
+  AScreen := '';
+  APedidoId := 0;
+  AExtraJson := '';
+
+  LQuery := TFDQuery.Create(nil);
+  try
+    LQuery.Connection := FDConnection;
+    LQuery.SQL.Text := 'select coalesce(screen, '''') as screen, coalesce(pedido_id, 0) as pedido_id, ' +
+      'coalesce(extra_json, '''') as extra_json from app_state where id = 1';
+    LQuery.Open;
+    if LQuery.IsEmpty then
+      Exit;
+
+    AScreen := Trim(LQuery.FieldByName('screen').AsString);
+    APedidoId := LQuery.FieldByName('pedido_id').AsInteger;
+    AExtraJson := LQuery.FieldByName('extra_json').AsString;
+    Result := AScreen <> '';
+  finally
+    LQuery.Free;
+  end;
+end;
 function TdmApp.SyncTable(const ATableName, ACodRepresentante: string; ALimit: Integer): Integer;
 var
   LArray: TJSONArray;
@@ -2337,6 +3021,7 @@ var
   LOldTempStore: Int64;
   LOldCacheSize: Int64;
   LPerfModeApplied: Boolean;
+  LProgressChunk: Integer;
 const
   CLogEachRowSql = False;
   CProgressChunk = 100;
@@ -2351,6 +3036,16 @@ const
         Result := Result + ', ';
       Result := Result + AList[K];
     end;
+  end;
+
+  function BeginningOfSyncDay(const AValue: string): string;
+  var
+    LValue: string;
+  begin
+    LValue := Trim(AValue);
+    Result := LValue;
+    if (Length(LValue) >= 10) and (LValue[5] = '-') and (LValue[8] = '-') then
+      Result := Copy(LValue, 1, 10) + ' 00:00:00';
   end;
 
   function FetchPage(AOffset, ASize: Integer): TJSONArray;
@@ -2378,7 +3073,7 @@ const
             LNumDocs.AddElement(TJSONNumber.Create(LNumDocInt));
         LReq.AddPair('numdocs', LNumDocs);
       end;
-      if (SameText(ATableName, 'produto') or SameText(ATableName, 'subcategoria')) and
+      if False and (SameText(ATableName, 'produto') or SameText(ATableName, 'subcategoria')) and
          (Trim(LDataUltSyncTabela) <> '') then
         LReq.AddPair('dataUltSincronizacao', LDataUltSyncTabela);
       Result := ExecuteJsonArrayRequest('api/list', LReq);
@@ -2408,6 +3103,32 @@ const
       LOff := LOff + LPageSize;
     until False;
   end;
+
+  function CountRemoteFast: Integer;
+  var
+    LReq: TJSONObject;
+    LResp: TJSONObject;
+  begin
+    Result := 0;
+    LReq := TJSONObject.Create;
+    try
+      LReq.AddPair('table', ATableName);
+      if ACodRepresentante <> '' then
+        LReq.AddPair('codRepresentante', ACodRepresentante);
+      if False and (SameText(ATableName, 'produto') or SameText(ATableName, 'subcategoria')) and
+         (Trim(LDataUltSyncTabela) <> '') then
+        LReq.AddPair('dataUltSincronizacao', LDataUltSyncTabela);
+
+      LResp := ExecuteJsonObjectRequest('api/count', LReq);
+      try
+        Result := LResp.GetValue<Integer>('total', 0);
+      finally
+        LResp.Free;
+      end;
+    finally
+      LReq.Free;
+    end;
+  end;
 begin
   try
     Inc(FSkipConnectionCheck);
@@ -2417,18 +3138,23 @@ begin
       FLastVendas1NumDocs.Clear;
     LTotal := 0;
     LOffset := 0;
-    {$IFDEF ANDROID}
-    if SameText(ATableName, 'vendas2') then
-      LPageSize := 8000
+    if SameText(ATableName, 'cliente') then
+      LPageSize := 1
     else
-      LPageSize := 5000;
-    {$ELSE}
-    LPageSize := 2000;
-    {$ENDIF}
+    begin
+      {$IFDEF ANDROID}
+      if SameText(ATableName, 'vendas2') then
+        LPageSize := 8000
+      else
+        LPageSize := 5000;
+      {$ELSE}
+      LPageSize := 2000;
+      {$ENDIF}
+    end;
     LDataUltSyncTabela := '';
-    LIncrementalTable := SameText(ATableName, 'produto') or SameText(ATableName, 'subcategoria');
+    LIncrementalTable := False;
     LShowTotalProgress := LIncrementalTable;
-    if SameText(ATableName, 'produto') or SameText(ATableName, 'subcategoria') then
+    if False and (SameText(ATableName, 'produto') or SameText(ATableName, 'subcategoria')) then
     begin
       LQuery := TFDQuery.Create(nil);
       try
@@ -2438,7 +3164,7 @@ begin
           'from sync_table_state where table_name = :p0';
         LQuery.ParamByName('p0').AsString := ATableName;
         LQuery.Open;
-        LDataUltSyncTabela := Trim(LQuery.FieldByName('last_sync_at').AsString);
+        LDataUltSyncTabela := BeginningOfSyncDay(LQuery.FieldByName('last_sync_at').AsString);
       finally
         LQuery.Free;
       end;
@@ -2446,8 +3172,24 @@ begin
     LNeedCountRemote := False;
     LTotalRemote := 0;
     LLastProgressNotified := -1;
+    if SameText(ATableName, 'cliente') then
+      LProgressChunk := 1
+    else
+      LProgressChunk := CProgressChunk;
 
     LogRequest('SYNC_STEP', 'ENTER', ATableName, 'page=' + LPageSize.ToString, 0);
+
+    if SameText(ATableName, 'cliente') then
+    begin
+      try
+        LTotalRemote := CountRemoteFast;
+        if Assigned(FOnSyncProgress) then
+          FOnSyncProgress(ATableName, 0, LTotalRemote, True);
+      except
+        on E: Exception do
+          LogRequest('SYNC_STEP', 'COUNT_ERROR', ATableName, E.Message, 0);
+      end;
+    end;
 
     if not TableExists(ATableName) then
       raise Exception.Create('Tabela ' + ATableName + ' nao existe no SQLite');
@@ -2529,6 +3271,13 @@ begin
 
 
         repeat
+          if Assigned(FOnSyncProgress) and SameText(ATableName, 'cliente') then
+          begin
+            if LTotalRemote > 0 then
+              FOnSyncProgress(ATableName, LTotal, LTotalRemote, LOffset = 0)
+            else
+              FOnSyncProgress(ATableName, LTotal, LOffset + LPageSize, LOffset = 0);
+          end;
           try
             LArray := FetchPage(LOffset, LPageSize);
           except
@@ -2549,7 +3298,7 @@ begin
             if Assigned(FOnSyncProgress) then
               FOnSyncProgress(
                 ATableName,
-                0,
+                LTotal,
                 LProgressTotal,
                 LOffset = 0
               );
@@ -2604,7 +3353,7 @@ begin
                 if Assigned(FOnSyncProgress) and
                    ((LTotal = 1) or
                     (LTotal = LProgressTotal) or
-                    ((LTotal - LLastProgressNotified) >= CProgressChunk)) then
+                    ((LTotal - LLastProgressNotified) >= LProgressChunk)) then
                 begin
                   FOnSyncProgress(ATableName, LTotal, LProgressTotal, False);
                   LLastProgressNotified := LTotal;
@@ -2695,9 +3444,147 @@ begin
   end;
 end;
 
+function TdmApp.SyncAllTablesSelectedByScript(const ACodRepresentante: string;
+  const ATables: array of string): Integer;
+var
+  LBody: TJSONObject;
+  LTablesJson: TJSONArray;
+  LSchema: TJSONObject;
+  LCols: TStringList;
+  LTypes: TStringList;
+  LColsJson: TJSONArray;
+  LResp: TJSONObject;
+  LTablesValue: TJSONValue;
+  LStats: TJSONArray;
+  LStatObj: TJSONObject;
+  LScriptValue: TJSONValue;
+  LScript: string;
+  LTableName: string;
+  I: Integer;
+  LRows: Integer;
+
+  procedure AddSchemaForTable(const ATableName: string);
+  var
+    K: Integer;
+  begin
+    LCols.Clear;
+    LTypes.Clear;
+    if SameText(ATableName, 'vendas2') then
+    begin
+      LCols.Add('numdoc');
+      LCols.Add('cod_produto');
+      LCols.Add('qtd');
+      LCols.Add('preco');
+      LCols.Add('desconto');
+      LCols.Add('cod_cliente');
+      LCols.Add('cod_representante');
+    end
+    else
+      GetTableColumns(ATableName, LCols, LTypes, SameText(ATableName, 'subcategoria'));
+
+    LColsJson := TJSONArray.Create;
+    for K := 0 to LCols.Count - 1 do
+      LColsJson.Add(LCols[K]);
+    LSchema.AddPair(ATableName, LColsJson);
+  end;
+
+begin
+  Result := 0;
+  LBody := TJSONObject.Create;
+  LCols := TStringList.Create;
+  LTypes := TStringList.Create;
+  try
+    if Trim(ACodRepresentante) <> '' then
+      LBody.AddPair('codRepresentante', ACodRepresentante);
+
+    LTablesJson := TJSONArray.Create;
+    LSchema := TJSONObject.Create;
+    LBody.AddPair('tables', LTablesJson);
+    LBody.AddPair('schema', LSchema);
+    LBody.AddPair('dataUltSincronizacao', TJSONObject.Create);
+
+    if Assigned(FOnSyncProgress) then
+      FOnSyncProgress('__script_prepare', 2, 5, True);
+
+    for I := 0 to High(ATables) do
+    begin
+      LTableName := ATables[I];
+      LTablesJson.Add(LTableName);
+      if not TableExists(LTableName) then
+        raise Exception.Create('Tabela ' + LTableName + ' nao existe no SQLite');
+      AddSchemaForTable(LTableName);
+
+    end;
+
+    if Assigned(FOnSyncProgress) then
+      FOnSyncProgress('__script_download', 3, 5, True);
+    LResp := ExecuteJsonObjectRequest('api/sync_script', LBody);
+    try
+      LScriptValue := LResp.GetValue('script');
+      if not Assigned(LScriptValue) then
+        raise Exception.Create('Resposta da API sem script de sincronizacao');
+
+      LScript := LScriptValue.Value;
+      if Trim(LScript) = '' then
+        raise Exception.Create('Script de sincronizacao vazio');
+
+      if Assigned(FOnSyncProgress) then
+        FOnSyncProgress('__script_apply', 4, 5, False);
+      ApplySqliteScript(LScript);
+      if Assigned(FOnSyncProgress) then
+        FOnSyncProgress('__script_finish', 5, 5, False);
+
+      LTablesValue := LResp.GetValue('tables');
+      if LTablesValue is TJSONArray then
+      begin
+        LStats := TJSONArray(LTablesValue);
+        for I := 0 to LStats.Count - 1 do
+        begin
+          if not (LStats.Items[I] is TJSONObject) then
+            Continue;
+          LStatObj := TJSONObject(LStats.Items[I]);
+          LTableName := LStatObj.GetValue<string>('table', '');
+          LRows := LStatObj.GetValue<Integer>('rows', 0);
+          Inc(Result, LRows);
+          if LTableName <> '' then
+            ExecSQL(
+              'insert into sync_table_state (table_name, representative_code, last_sync_at, row_count, last_error) values (:p0, :p1, datetime(''now''), :p2, null) ' +
+              'on conflict(table_name) do update set representative_code = excluded.representative_code, last_sync_at = excluded.last_sync_at, row_count = excluded.row_count, last_error = null',
+              [LTableName, ACodRepresentante, LRows]
+            );
+          if Assigned(FOnSyncProgress) then
+            FOnSyncProgress(LTableName, LRows, LRows, True);
+        end;
+      end;
+
+      for I := 0 to High(ATables) do
+      begin
+        LTableName := ATables[I];
+        if Trim(LTableName) = '' then
+          Continue;
+        ExecSQL(
+          'insert into sync_table_state (table_name, representative_code, last_sync_at, row_count, last_error) values (:p0, :p1, datetime(''now''), ' +
+          'coalesce((select row_count from sync_table_state where table_name = :p2), 0), null) ' +
+          'on conflict(table_name) do update set representative_code = excluded.representative_code, last_sync_at = excluded.last_sync_at, last_error = null',
+          [LTableName, ACodRepresentante, LTableName]
+        );
+      end;
+
+      if Assigned(FOnSyncProgress) then
+        FOnSyncProgress('__script_finish', 5, 5, False);
+    finally
+      LResp.Free;
+    end;
+  finally
+    LTypes.Free;
+    LCols.Free;
+    LBody.Free;
+  end;
+end;
+
 function TdmApp.SyncAllTables(const ACodRepresentante: string): Integer;
 const
-  CDefaultTables: array[0..11] of string = (
+  CDefaultTables: array[0..13] of string = (
     'representante',
     'cliente',
     'vendas1',
@@ -2709,7 +3596,9 @@ const
     'produto_representante',
     'grupo_representante',
     'produto_representante_inativos',
-    'prazo_representante'
+    'prazo_representante',
+    'grade_comissao',
+    'escala_comissao'
   );
 var
   LBody: TJSONObject;

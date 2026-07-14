@@ -19,6 +19,7 @@ uses
 procedure killApp;
 function ChecarConexao: Boolean;
 function IsXiaomiDevice: Boolean;
+function AndroidNavigationInset(const AIsLandscape: Boolean): Single;
 function EncodeBase64(const texto: string): string;
 function DecodeBase64(const texto: string): string;
 function Base64FromBitmap(Bitmap: TBitmap): string;
@@ -41,6 +42,7 @@ uses
   Androidapi.JNI.GraphicsContentViewText,
   Androidapi.JNI.Net,
   Androidapi.JNI.Os,
+  Androidapi.JNI.Util,
   Androidapi.IOUtils,
   Androidapi.Jni.App,
   FMX.Helpers.Android,
@@ -74,11 +76,22 @@ function IsXiaomiDevice: Boolean;
 {$IFDEF ANDROID}
 var
   LManufacturer: string;
+  LBrand: string;
+  LModel: string;
 {$ENDIF}
 begin
 {$IFDEF ANDROID}
   LManufacturer := Trim(LowerCase(JStringToString(TJBuild.JavaClass.MANUFACTURER)));
-  Result := (Pos('xiaomi', LManufacturer) > 0) or (Pos('realme', LManufacturer) > 0);
+  LBrand := Trim(LowerCase(JStringToString(TJBuild.JavaClass.BRAND)));
+  LModel := Trim(LowerCase(JStringToString(TJBuild.JavaClass.MODEL)));
+  Result := (Pos('xiaomi', LManufacturer) > 0) or
+            (Pos('redmi', LManufacturer) > 0) or
+            (Pos('poco', LManufacturer) > 0) or
+            (Pos('xiaomi', LBrand) > 0) or
+            (Pos('redmi', LBrand) > 0) or
+            (Pos('poco', LBrand) > 0) or
+            (Pos('redmi', LModel) > 0) or
+            (Pos('poco', LModel) > 0);
 
 {$ELSE}
   Result := False;
@@ -86,6 +99,43 @@ begin
 end;
 
 
+function AndroidNavigationInset(const AIsLandscape: Boolean): Single;
+{$IFDEF ANDROID}
+var
+  LRes: JResources;
+  LMetrics: JDisplayMetrics;
+  LResourceName: JString;
+  LResourceId: Integer;
+  LDensity: Single;
+{$ENDIF}
+begin
+  Result := 0;
+{$IFDEF ANDROID}
+  try
+    LRes := TAndroidHelper.Context.getResources;
+    if not Assigned(LRes) then
+      Exit;
+
+    if AIsLandscape then
+      LResourceName := StringToJString('navigation_bar_width')
+    else
+      LResourceName := StringToJString('navigation_bar_height');
+
+    LResourceId := LRes.getIdentifier(LResourceName, StringToJString('dimen'), StringToJString('android'));
+    if LResourceId <= 0 then
+      Exit;
+
+    LMetrics := LRes.getDisplayMetrics;
+    LDensity := 1;
+    if Assigned(LMetrics) and (LMetrics.density > 0) then
+      LDensity := LMetrics.density;
+
+    Result := LRes.getDimensionPixelSize(LResourceId) / LDensity;
+  except
+    Result := 0;
+  end;
+{$ENDIF}
+end;
 procedure SairdoSistema;
 begin
   TDialogService.MessageDialog('Confirmar a saida do sistema?', System.UITypes.TMsgDlgType.mtInformation, [System.UITypes.TMsgDlgBtn.mbYes, System.UITypes.TMsgDlgBtn.mbNo], System.UITypes.TMsgDlgBtn.mbNo, 0,
@@ -211,3 +261,5 @@ begin
 end;
 
 end.
+
+

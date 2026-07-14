@@ -24,6 +24,7 @@ type
     procedure LvPrazosItemClick(const Sender: TObject; const AItem: TListViewItem);
     procedure ImgVoltarClick(Sender: TObject);
   private
+    procedure FormClose(Sender: TObject; var Action: TCloseAction);
     procedure Listar;
     function GetTabelaCols(const ATabela: string): TArray<string>;
     function FindCampo(const ACols: TArray<string>; const ACandidatos: array of string): string;
@@ -129,7 +130,8 @@ end;
 
 procedure TfrmPrazoPgto.FormShow(Sender: TObject);
 begin
-  Listar;
+    OnClose := FormClose;
+Listar;
 end;
 
 procedure TfrmPrazoPgto.LvPrazosItemClick(const Sender: TObject; const AItem: TListViewItem);
@@ -158,6 +160,12 @@ end;
 procedure TfrmPrazoPgto.ImgVoltarClick(Sender: TObject);
 begin
   Close;
+end;
+
+procedure TfrmPrazoPgto.FormClose(Sender: TObject; var Action: TCloseAction);
+begin
+  Action := TCloseAction.caFree;
+  frmPrazoPgto := nil;
 end;
 
 end.

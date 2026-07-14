@@ -7,7 +7,7 @@ object frmPedidoItem: TfrmPedidoItem
   FormFactor.Width = 360
   FormFactor.Height = 640
   FormFactor.Devices = [Desktop]
-  DesignerMasterStyle = 3
+  DesignerMasterStyle = 0
   object LayoutRoot: TLayout
     Align = Contents
     Size.Width = 360.000000000000000000

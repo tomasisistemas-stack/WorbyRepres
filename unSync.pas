@@ -1,4 +1,4 @@
-﻿unit unSync;
+unit unSync;
 
 interface
 
@@ -47,6 +47,8 @@ type
     FQueueInserted: Integer;
     FQueueTotal: Integer;
     FQueueIsNewTable: Boolean;
+    FLastSyncProgressTick: Cardinal;
+    procedure FormClose(Sender: TObject; var Action: TCloseAction);
     procedure DoQueueProgress;
     procedure DoQueueMessage;
     procedure DoSyncProgress;
@@ -155,17 +157,42 @@ end;
 
 procedure TfrmSync.FormShow(Sender: TObject);
 begin
+  if Assigned(dmApp) then
+    dmApp.SetAppState('sync', 0, '');
+  OnClose := FormClose;
   AtualizarUltimaSyncLabel;
   AtualizarResumoEnvios;
   LbProgresso.Text := 'Aguardando sincronizacao';
   ProgressBarSync.Value := 0;
   ApplyOrientationLayout;
+  TThread.ForceQueue(nil,
+    procedure
+    begin
+      if not (csDestroying in ComponentState) then
+        AtualizarUltimaSyncLabel;
+    end);
 end;
 
 procedure TfrmSync.AtualizarUltimaSyncLabel;
 var
   LQuery: TFDQuery;
   LUltima: string;
+
+  function FormatarDataHora(const AValue: string): string;
+  var
+    S: string;
+  begin
+    S := Trim(AValue);
+    Result := S;
+    if Length(S) >= 16 then
+    begin
+      if (S[5] = '-') and (S[8] = '-') then
+        Result := Copy(S, 9, 2) + '/' + Copy(S, 6, 2) + '/' + Copy(S, 1, 4) + ' ' + Copy(S, 12, 5)
+      else if (S[3] = '/') and (S[6] = '/') then
+        Result := Copy(S, 1, 16);
+    end;
+  end;
+
 begin
   LbUltimaSync.Text := 'Ultima sincronizacao: --';
 
@@ -175,12 +202,33 @@ begin
   LQuery := TFDQuery.Create(nil);
   try
     LQuery.Connection := dmApp.FDConnection;
-    LQuery.SQL.Text :=
-      'select strftime(''%d/%m/%Y %H:%M'', max(last_sync_at), ''localtime'') as ultima ' +
-      'from sync_table_state ' +
-      'where last_sync_at is not null and coalesce(last_error, '''') = ''''';
+
+    LQuery.SQL.Text := 'select coalesce(value, '''') as ultima from app_config where key = ''ultima_sincronizacao_label''';
     LQuery.Open;
-    LUltima := Trim(LQuery.FieldByName('ultima').AsString);
+    if not LQuery.IsEmpty then
+      LUltima := Trim(LQuery.FieldByName('ultima').AsString);
+
+    if LUltima = '' then
+    begin
+      LQuery.Close;
+      LQuery.SQL.Text := 'select coalesce(value, '''') as ultima from app_config where key = ''ultima_sincronizacao''';
+      LQuery.Open;
+      if not LQuery.IsEmpty then
+        LUltima := FormatarDataHora(LQuery.FieldByName('ultima').AsString);
+    end;
+
+    if LUltima = '' then
+    begin
+      LQuery.Close;
+      LQuery.SQL.Text :=
+        'select coalesce(max(last_sync_at), '''') as ultima ' +
+        'from sync_table_state ' +
+        'where last_sync_at is not null and coalesce(last_error, '''') = ''''';
+      LQuery.Open;
+      if not LQuery.IsEmpty then
+        LUltima := FormatarDataHora(LQuery.FieldByName('ultima').AsString);
+    end;
+
     if LUltima <> '' then
       LbUltimaSync.Text := 'Ultima sincronizacao: ' + LUltima;
   finally
@@ -257,14 +305,16 @@ end;
 procedure TfrmSync.ApplyOrientationLayout;
 var
   LIsLandscape: Boolean;
+  LIsTabletPortrait: Boolean;
   LSafeBottom: Single;
   LContentTop: Single;
   LStatusWidth: Single;
   LButtonWidth: Single;
 begin
   LIsLandscape := Width > Height;
+  LIsTabletPortrait := (not LIsLandscape) and (Width >= 430);
   LSafeBottom := 0;
-  if (not LIsLandscape) and IsXiaomiDevice then
+  if not LIsLandscape then
     LSafeBottom := 50;
 
   if LIsLandscape then
@@ -276,8 +326,8 @@ begin
     LStatusWidth := Width - 220;
     if LStatusWidth < 360 then
       LStatusWidth := Width - 40;
-    if LStatusWidth > 760 then
-      LStatusWidth := 760;
+    if LStatusWidth > 900 then
+      LStatusWidth := 900;
     if LStatusWidth < 300 then
       LStatusWidth := 300;
 
@@ -302,6 +352,51 @@ begin
     lbottom.Width := Width;
     lbottom.Position.X := 0;
     lbottom.Position.Y := Height - lbottom.Height;
+  end
+  else if LIsTabletPortrait then
+  begin
+    TopBar.Height := 82;
+    LbTitulo.Position.Y := (TopBar.Height - LbTitulo.Height) * 0.75;
+
+    LContentTop := TopBar.Height + 22;
+    LStatusWidth := Width - 36;
+    if Width >= 600 then
+    begin
+      if LStatusWidth > 760 then
+        LStatusWidth := 760;
+    end
+    else if LStatusWidth > 560 then
+      LStatusWidth := 560;
+    CardStatus.Align := TAlignLayout.None;
+    CardStatus.Width := LStatusWidth;
+    if Width >= 600 then
+      CardStatus.Height := 160
+    else
+      CardStatus.Height := 142;
+    CardStatus.Position.X := (Width - CardStatus.Width) / 2;
+    CardStatus.Position.Y := LContentTop;
+
+    LayoutRod.Align := TAlignLayout.None;
+    LButtonWidth := Width - 120;
+    if Width >= 600 then
+    begin
+      if LButtonWidth > 460 then
+        LButtonWidth := 460;
+    end
+    else if LButtonWidth > 360 then
+      LButtonWidth := 360;
+    if LButtonWidth < 220 then
+      LButtonWidth := 220;
+    LayoutRod.Width := LButtonWidth;
+    LayoutRod.Position.X := (Width - LayoutRod.Width) / 2;
+    LayoutRod.Position.Y := CardStatus.Position.Y + CardStatus.Height + 34;
+
+    lbottom.Align := TAlignLayout.None;
+    lbottom.Margins.Bottom := 0;
+    lbottom.Height := 64;
+    lbottom.Width := Width;
+    lbottom.Position.X := 0;
+    lbottom.Position.Y := Height - lbottom.Height - LSafeBottom;
   end
   else
   begin
@@ -349,16 +444,38 @@ procedure TfrmSync.AtualizarProgresso(const ATexto: string; AValor: Single);
 begin
   LbProgresso.Text := ATexto;
   ProgressBarSync.Value := AValor;
-  Application.ProcessMessages;
 end;
 
 procedure TfrmSync.SyncProgressHandler(const ATable: string; AInserted, ATotal: Integer; AIsNewTable: Boolean);
+var
+  LTable: string;
+  LInserted: Integer;
+  LTotal: Integer;
+  LIsNewTable: Boolean;
+  LNow: Cardinal;
 begin
-  FQueueTableName := ATable;
-  FQueueInserted := AInserted;
-  FQueueTotal := ATotal;
-  FQueueIsNewTable := AIsNewTable;
-  TThread.Queue(nil, DoSyncProgress);
+  LTable := ATable;
+  LInserted := AInserted;
+  LTotal := ATotal;
+  LIsNewTable := AIsNewTable;
+
+  LNow := TThread.GetTickCount;
+  if (not LIsNewTable) and (LTotal > 0) and (LInserted < LTotal) and
+     ((LNow - FLastSyncProgressTick) < 300) then
+    Exit;
+  FLastSyncProgressTick := LNow;
+
+  TThread.Queue(nil,
+    procedure
+    begin
+      if (csDestroying in ComponentState) then
+        Exit;
+      FQueueTableName := LTable;
+      FQueueInserted := LInserted;
+      FQueueTotal := LTotal;
+      FQueueIsNewTable := LIsNewTable;
+      DoSyncProgress;
+    end);
 end;
 
 procedure TfrmSync.QueueProgress(const ATexto: string; AValor: Single);
@@ -393,7 +510,154 @@ begin
 end;
 
 procedure TfrmSync.DoSyncProgress;
+var
+  LPerc: Integer;
+  LNomeTabela: string;
+  LDownloadProgress: Boolean;
+  LApplyProgress: Boolean;
+
+  function NomeTabelaAmigavel(const ATable: string): string;
+  begin
+    if SameText(ATable, 'representante') then
+      Exit('Representante');
+    if SameText(ATable, 'cidades') then
+      Exit('Cidades');
+    if SameText(ATable, 'cliente') then
+      Exit('Clientes');
+    if SameText(ATable, 'vendas1') then
+      Exit('Pedidos');
+    if SameText(ATable, 'vendas2') then
+      Exit('Itens dos pedidos');
+    if SameText(ATable, 'produto') then
+      Exit('Produtos');
+    if SameText(ATable, 'subcategoria') then
+      Exit('Imagens/Categorias');
+    if SameText(ATable, 'fop') then
+      Exit('Formas de pagamento');
+    if SameText(ATable, 'prazo') then
+      Exit('Prazos');
+    if SameText(ATable, 'produto_representante') then
+      Exit('Descontos por produto');
+    if SameText(ATable, 'grupo_representante') then
+      Exit('Descontos por grupo');
+    if SameText(ATable, 'produto_representante_inativos') then
+      Exit('Produtos inativos');
+    if SameText(ATable, 'prazo_representante') then
+      Exit('Prazos por representante');
+    Result := ATable;
+  end;
+
+  function FormatKb(const AValue: Integer): string;
+  begin
+    if AValue >= 1024 then
+      Result := FormatFloat('0.0', AValue / 1024) + ' MB'
+    else
+      Result := AValue.ToString + ' KB';
+  end;
 begin
+  LDownloadProgress := SameText(FQueueTableName, '__script_download') and
+    (((FQueueTotal > 5) and (FQueueInserted >= 0)) or
+     ((FQueueTotal = 0) and (FQueueInserted > 0)));
+  LApplyProgress := SameText(FQueueTableName, '__script_apply') and (FQueueTotal > 5);
+
+  if LDownloadProgress then
+  begin
+    ProgressBarSync.Min := 0;
+    ProgressBarSync.Max := 100;
+
+    ProgressBarTable.Min := 0;
+    if FQueueTotal > 0 then
+    begin
+      ProgressBarTable.Max := FQueueTotal;
+      ProgressBarTable.Value := FQueueInserted;
+      LPerc := Round(FQueueInserted / FQueueTotal * 100);
+      if LPerc > 100 then
+        LPerc := 100;
+      ProgressBarSync.Value := 40 + Round(LPerc * 0.20);
+      LbProgresso.Text := 'Etapa 3 de 5 - Baixando dados da API';
+      LbProgressoTabela.Text := 'Download: ' + FormatKb(FQueueInserted) + ' de ' +
+        FormatKb(FQueueTotal) + ' - ' + LPerc.ToString + '%';
+    end
+    else
+    begin
+      ProgressBarSync.Value := 40;
+      ProgressBarTable.Max := 1;
+      ProgressBarTable.Value := 0;
+      LbProgresso.Text := 'Etapa 3 de 5 - Baixando dados da API';
+      LbProgressoTabela.Text := 'Download: ' + FormatKb(FQueueInserted);
+    end;
+    Exit;
+  end;
+
+  if LApplyProgress then
+  begin
+    ProgressBarSync.Min := 0;
+    ProgressBarSync.Max := 100;
+
+    ProgressBarTable.Min := 0;
+    ProgressBarTable.Max := FQueueTotal;
+    ProgressBarTable.Value := FQueueInserted;
+    if FQueueTotal > 0 then
+      LPerc := Round(FQueueInserted / FQueueTotal * 100)
+    else
+      LPerc := 0;
+    if LPerc > 100 then
+      LPerc := 100;
+
+    ProgressBarSync.Value := 60 + Round(LPerc * 0.20);
+    LbProgresso.Text := 'Etapa 4 de 5 - Gravando dados no aparelho';
+    LbProgressoTabela.Text := 'Comandos aplicados: ' + FQueueInserted.ToString +
+      ' de ' + FQueueTotal.ToString + ' - ' + LPerc.ToString + '%';
+    Exit;
+  end;
+
+  if SameText(FQueueTableName, '__script_prepare') or
+     SameText(FQueueTableName, '__script_download') or
+     SameText(FQueueTableName, '__script_apply') or
+     SameText(FQueueTableName, '__script_finish') then
+  begin
+    ProgressBarSync.Min := 0;
+    ProgressBarSync.Max := 100;
+    if FQueueTotal > 0 then
+    begin
+      ProgressBarSync.Value := Round(FQueueInserted / FQueueTotal * 100);
+    end;
+
+    ProgressBarTable.Min := 0;
+    ProgressBarTable.Max := 1;
+    ProgressBarTable.Value := 0;
+    if FQueueTotal > 0 then
+      LPerc := Round(FQueueInserted / FQueueTotal * 100)
+    else
+      LPerc := 0;
+
+    if SameText(FQueueTableName, '__script_prepare') then
+      LbProgresso.Text := 'Etapa 2 de 5 - Preparando sincronizacao'
+    else if SameText(FQueueTableName, '__script_download') then
+      LbProgresso.Text := 'Etapa 3 de 5 - Buscando dados na API'
+    else if SameText(FQueueTableName, '__script_apply') then
+      LbProgresso.Text := 'Etapa 4 de 5 - Gravando dados no aparelho'
+    else
+      LbProgresso.Text := 'Etapa 5 de 5 - Finalizando sincronizacao';
+
+    LbProgressoTabela.Text := 'Etapa ' + FQueueInserted.ToString + ' de ' +
+      FQueueTotal.ToString + ' - ' + LPerc.ToString + '%';
+    Exit;
+  end;
+
+  if SameText(FQueueTableName, 'cliente') and (FQueueTotal = 0) then
+  begin
+    ProgressBarTable.Min := 0;
+    ProgressBarTable.Max := 1;
+    ProgressBarTable.Value := 0;
+    LbProgresso.Text := 'Sincronizando clientes';
+    if FQueueInserted > 0 then
+      LbProgressoTabela.Text := 'Clientes sincronizados: ' + FQueueInserted.ToString
+    else
+      LbProgressoTabela.Text := 'Aguardando clientes...';
+    Exit;
+  end;
+
   if FQueueIsNewTable then
   begin
     ProgressBarTable.Min := 0;
@@ -405,15 +669,38 @@ begin
   end
   else
   begin
+    if FQueueTotal > ProgressBarTable.Max then
+      ProgressBarTable.Max := FQueueTotal;
     ProgressBarTable.Value := FQueueInserted;
   end;
-  LbProgressoTabela.Text := 'Registros (' + FQueueTableName + '): ' +
-    FQueueInserted.ToString + ' / ' + FQueueTotal.ToString;
-  Application.ProcessMessages;
+  LNomeTabela := NomeTabelaAmigavel(FQueueTableName);
+  if SameText(FQueueTableName, 'cliente') then
+  begin
+    LbProgresso.Text := 'Sincronizando clientes';
+    LbProgressoTabela.Text := 'Clientes sincronizados: ' +
+      FQueueInserted.ToString + ' / ' + FQueueTotal.ToString;
+  end
+  else
+  begin
+    if FQueueTotal > 0 then
+      LPerc := Round(FQueueInserted / FQueueTotal * 100)
+    else
+      LPerc := 0;
+    LbProgresso.Text := 'Sincronizando ' + LowerCase(LNomeTabela);
+    LbProgressoTabela.Text := LNomeTabela + ': ' +
+      FQueueInserted.ToString + ' / ' + FQueueTotal.ToString;
+    if FQueueTotal > 0 then
+      LbProgressoTabela.Text := LbProgressoTabela.Text + ' - ' + LPerc.ToString + '%';
+  end;
 end;
 
 procedure TfrmSync.DoFinishSync;
 begin
+  if Assigned(dmApp) then
+  begin
+    dmApp.SetAppConfigValue('ultima_sincronizacao', FormatDateTime('yyyy-mm-dd hh:nn:ss', Now));
+    dmApp.SetAppConfigValue('ultima_sincronizacao_label', FormatDateTime('dd/mm/yyyy hh:nn', Now));
+  end;
   AtualizarProgresso('Sincronizacao concluida', ProgressBarSync.Max);
   AtualizarUltimaSyncLabel;
   AtualizarResumoEnvios;
@@ -421,6 +708,10 @@ begin
   FSyncRunning := False;
   if Assigned(dmApp) then
     dmApp.OnSyncProgress := nil;
+  {$IFDEF ANDROID}
+  if Assigned(frmPrincipal) then
+    frmPrincipal.ResumeLocationServiceAfterSync;
+  {$ENDIF}
 end;
 
 procedure TfrmSync.DoFailSync;
@@ -429,6 +720,10 @@ begin
   FSyncRunning := False;
   if Assigned(dmApp) then
     dmApp.OnSyncProgress := nil;
+  {$IFDEF ANDROID}
+  if Assigned(frmPrincipal) then
+    frmPrincipal.FinishLocationSyncPause;
+  {$ENDIF}
 end;
 
 procedure TfrmSync.LayoutRodClick(Sender: TObject);
@@ -455,11 +750,13 @@ const
     'prazo_representante'
   );
 
-  CTabelasSyncGlobais: array[0..3] of string = (
+  CTabelasSyncGlobais: array[0..5] of string = (
     'produto',
     'subcategoria',
     'fop',
-    'prazo'
+    'prazo',
+    'grade_comissao',
+    'escala_comissao'
   );
 var
   I: Integer;
@@ -487,9 +784,14 @@ begin
   if FSyncRunning then
     Exit;
   FSyncRunning := True;
+  FLastSyncProgressTick := 0;
   SetSyncUiEnabled(False);
+  {$IFDEF ANDROID}
+  if Assigned(frmPrincipal) then
+    frmPrincipal.PauseLocationServiceForSync;
+  {$ENDIF}
 
-  LMax := 1 + Length(CTabelasSyncFiltradas) + Length(CTabelasSyncGlobais);
+  LMax := 5;
   ProgressBarSync.Min := 0;
   ProgressBarSync.Max := LMax;
   ProgressBarSync.Value := 0;
@@ -505,8 +807,13 @@ begin
       K: Integer;
       LEnviados: Integer;
       LFullReason: string;
+      LTables: TArray<string>;
+      LMsg: string;
     begin
       try
+        {$IFDEF ANDROID}
+        TThread.Sleep(1200);
+        {$ENDIF}
         dmApp.OnSyncProgress := SyncProgressHandler;
         LogSyncStep('INIT');
 
@@ -529,35 +836,24 @@ begin
           LogSyncStep('CLEAR_OK_' + LFullReason);
         end;
 
-        for K := 0 to High(CTabelasSyncGlobais) do
-        begin
-          QueueProgress('Sincronizando ' + CTabelasSyncGlobais[K] + '...', K + 2);
-          LogSyncStep(CTabelasSyncGlobais[K]);
-          try
-            dmApp.SyncTable(CTabelasSyncGlobais[K], '', 0);
-          except
-            on E: Exception do
-            begin
-              dmApp.SetSyncTableError(CTabelasSyncGlobais[K], '', E.Message);
-              LogSyncError(CTabelasSyncGlobais[K], E.Message);
-              raise;
-            end;
-          end;
-        end;
-
+        QueueProgress('Preparando sincronizacao...', 1);
+        SetLength(LTables, Length(CTabelasSyncFiltradas) + Length(CTabelasSyncGlobais));
         for K := 0 to High(CTabelasSyncFiltradas) do
-        begin
-          QueueProgress('Sincronizando ' + CTabelasSyncFiltradas[K] + '...', Length(CTabelasSyncGlobais) + 2 + K);
-          LogSyncStep(CTabelasSyncFiltradas[K]);
-          try
-            dmApp.SyncTable(CTabelasSyncFiltradas[K], LIdRep.ToString, 0);
-          except
-            on E: Exception do
-            begin
-              dmApp.SetSyncTableError(CTabelasSyncFiltradas[K], LIdRep.ToString, E.Message);
-              LogSyncError(CTabelasSyncFiltradas[K], E.Message);
-              raise;
-            end;
+          LTables[K] := CTabelasSyncFiltradas[K];
+        for K := 0 to High(CTabelasSyncGlobais) do
+          LTables[Length(CTabelasSyncFiltradas) + K] := CTabelasSyncGlobais[K];
+
+        LogSyncStep('SYNC_SCRIPT');
+        try
+          dmApp.SyncAllTablesSelectedByScript(LIdRep.ToString, LTables);
+          dmApp.SetAppConfigValue('ultima_sincronizacao', FormatDateTime('yyyy-mm-dd hh:nn:ss', Now));
+          dmApp.SetAppConfigValue('ultima_sincronizacao_label', FormatDateTime('dd/mm/yyyy hh:nn', Now));
+        except
+          on E: Exception do
+          begin
+            dmApp.SetSyncTableError('sync_script', LIdRep.ToString, E.Message);
+            LogSyncError('SYNC_SCRIPT', E.Message);
+            raise;
           end;
         end;
 
@@ -567,7 +863,17 @@ begin
         on E: Exception do
         begin
           LogSyncError('Sync', E.Message);
-          QueueMessage('Erro na sincronizacao: ' + E.Message);
+          LMsg := E.Message;
+          if (Pos('socketexception', LowerCase(LMsg)) > 0) or
+             (Pos('connection abort', LowerCase(LMsg)) > 0) or
+             (Pos('software caused connection abort', LowerCase(LMsg)) > 0) or
+             (Pos('connection reset', LowerCase(LMsg)) > 0) then
+            LMsg := 'Conexao interrompida durante o download. Verifique a internet e tente sincronizar novamente.'
+          else if (Pos('timeout', LowerCase(LMsg)) > 0) or
+             (Pos('timed out', LowerCase(LMsg)) > 0) or
+             (Pos('sockettimeoutexception', LowerCase(LMsg)) > 0) then
+            LMsg := 'Internet lenta ou instavel. Tente sincronizar novamente em alguns minutos.';
+          QueueMessage('Erro na sincronizacao: ' + LMsg);
           TThread.Queue(nil, DoFailSync);
         end;
       end;
@@ -577,6 +883,14 @@ end;
 procedure TfrmSync.LbBtnSyncClick(Sender: TObject);
 begin
   Sincronar;
+end;
+
+procedure TfrmSync.FormClose(Sender: TObject; var Action: TCloseAction);
+begin
+  if Assigned(dmApp) then
+    dmApp.ClearAppState('sync');
+  Action := TCloseAction.caFree;
+  frmSync := nil;
 end;
 
 end.

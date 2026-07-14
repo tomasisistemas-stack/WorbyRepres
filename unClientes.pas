@@ -47,6 +47,7 @@ type
 
     procedure LbBtnBuscarClick(Sender: TObject);
     procedure FormShow(Sender: TObject);
+    procedure FormClose(Sender: TObject; var Action: TCloseAction);
     procedure LvClientesItemClick(const Sender: TObject; const AItem: TListViewItem);
   public
   end;
@@ -67,6 +68,7 @@ uses
 procedure TfrmClientes.DoShow;
 begin
   inherited;
+  OnClose := FormClose;
   ApplyResponsiveLayout;
 end;
 
@@ -79,6 +81,7 @@ end;
 procedure TfrmClientes.ApplyResponsiveLayout;
 var
   LIsLandscape: Boolean;
+  LIsTabletPortrait: Boolean;
   LBottomMargin: Single;
   LContentW: Single;
   LX: Single;
@@ -93,34 +96,62 @@ begin
     Exit;
 
   LIsLandscape := ClientWidth > ClientHeight;
+  LIsTabletPortrait := (not LIsLandscape) and (ClientWidth >= 430);
   LBottomMargin := 0;
-
-  if LIsLandscape then
+  if not LIsLandscape then
+    LBottomMargin := 50;
+  if LIsLandscape or LIsTabletPortrait then
   begin
-    TopBar.Height := 64;
+    if LIsLandscape then
+      TopBar.Height := 64
+    else
+      TopBar.Height := 82;
     LbTitulo.Position.Y := (TopBar.Height - LbTitulo.Height) * 0.78;
 
-    LContentW := Min(ClientWidth - 20, 560);
+    if Min(ClientWidth, ClientHeight) >= 600 then
+      LContentW := Min(ClientWidth - 28, 760)
+    else
+      LContentW := Min(ClientWidth - 20, 620);
     if LContentW < 280 then
       LContentW := ClientWidth - 8;
     LX := (ClientWidth - LContentW) * 0.5;
 
     CardBusca.Align := TAlignLayout.None;
-    CardBusca.SetBounds(LX, TopBar.Height + 8, LContentW, 96);
+    if LIsTabletPortrait then
+      CardBusca.SetBounds(LX, TopBar.Height + 8, LContentW, 78)
+    else
+      CardBusca.SetBounds(LX, TopBar.Height + 8, LContentW, 96);
 
     EdBuscar.Position.X := 18;
-    EdBuscar.Position.Y := 20.8;
-    EdBuscar.Width := CardBusca.Width - 36;
+    if LIsTabletPortrait then
+      EdBuscar.Position.Y := 32
+    else
+      EdBuscar.Position.Y := 20.8;
 
     LBtnW := 90;
     BtnBuscar.Width := LBtnW;
     BtnBuscar.Height := 28;
     BtnBuscar.Position.X := CardBusca.Width - LBtnW - 18;
-    BtnBuscar.Position.Y := 59;
+    if LIsTabletPortrait then
+      BtnBuscar.Position.Y := 35
+    else
+      BtnBuscar.Position.Y := 59;
 
-    CbModoBusca.Position.X := 18;
-    CbModoBusca.Position.Y := 59;
-    CbModoBusca.Width := BtnBuscar.Position.X - 24;
+    if LIsTabletPortrait then
+    begin
+      CbModoBusca.Position.X := 18;
+      CbModoBusca.Position.Y := 32;
+      CbModoBusca.Width := 130;
+      EdBuscar.Position.X := CbModoBusca.Position.X + CbModoBusca.Width + 8;
+      EdBuscar.Width := BtnBuscar.Position.X - EdBuscar.Position.X - 8;
+    end
+    else
+    begin
+      EdBuscar.Width := CardBusca.Width - 36;
+      CbModoBusca.Position.X := 18;
+      CbModoBusca.Position.Y := 59;
+      CbModoBusca.Width := BtnBuscar.Position.X - 24;
+    end;
 
     LFooterH := 56;
     lbottom.Align := TAlignLayout.None;
@@ -136,9 +167,6 @@ begin
   end
   else
   begin
-    if IsXiaomiDevice then
-      LBottomMargin := 50;
-
     TopBar.Height := 96;
     LbTitulo.Position.Y := 53;
 
@@ -155,6 +183,8 @@ begin
   begin
     if LIsLandscape then
       LvClientes.ItemAppearance.ItemHeight := 40
+    else if LIsTabletPortrait then
+      LvClientes.ItemAppearance.ItemHeight := 52
     else
       LvClientes.ItemAppearance.ItemHeight := 45;
   end;
@@ -327,6 +357,12 @@ begin
   end;
   FBuscarPorCodigo := False;
   Listar;
+end;
+
+procedure TfrmClientes.FormClose(Sender: TObject; var Action: TCloseAction);
+begin
+  Action := TCloseAction.caFree;
+  frmClientes := nil;
 end;
 
 procedure TfrmClientes.LvClientesItemClick(const Sender: TObject; const AItem: TListViewItem);

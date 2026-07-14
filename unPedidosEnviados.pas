@@ -1,12 +1,13 @@
-ï»¿unit unPedidosEnviados;
+unit unPedidosEnviados;
 
 interface
 
 uses
   System.SysUtils, System.Types, System.UITypes, System.Classes, System.Variants,
-  System.JSON, System.DateUtils, System.IOUtils,
+  System.JSON, System.DateUtils, System.IOUtils, System.Math,
   FMX.Types, FMX.Controls, FMX.Forms, FMX.Graphics, FMX.Dialogs, FMX.Objects,
   FMX.Controls.Presentation, FMX.StdCtrls, FMX.Layouts, FMX.Edit, FMX.ListView,
+  FMX.ListBox,
   FMX.ListView.Types, FMX.ListView.Appearances, FMX.ListView.Adapters.Base,
   Data.DB, FireDAC.Comp.Client, FireDAC.Comp.DataSet
   {$IF Defined(MSWINDOWS)}
@@ -39,6 +40,20 @@ type
     procedure BtnImprimirClick(Sender: TObject);
     procedure BtnCompartilharClick(Sender: TObject);
   private
+    CbStatusPedidos: TComboBox;
+    EdDiaInicial: TEdit;
+    EdDiaFinal: TEdit;
+    CardTotalPedidos: TRectangle;
+    CardDescMedio: TRectangle;
+    LbTotalPedidosTitulo: TLabel;
+    LbTotalPedidosValor: TLabel;
+    LbDescMedioTitulo: TLabel;
+    LbDescMedioValor: TLabel;
+    FAjustandoDiaFiltro: Boolean;
+    FAtualizandoFiltros: Boolean;
+    FFilterTimer: TTimer;
+    procedure FormClose(Sender: TObject; var Action: TCloseAction);
+    procedure FilterTimerTimer(Sender: TObject);
     function FornecedorFromApiBaseUrl(const AUrl: string): string;
     function ClienteConsumidorFinal(const ACodCliente: Integer): Boolean;
     function JsonFieldAsString(const AJsonText, AField: string): string;
@@ -50,6 +65,17 @@ type
     function BuscarNomePrazo(const AId: Integer): string;
     function TotalLiquidoPedido(const APedidoId: Integer): Double;
     function PedidoSelecionadoId: Integer;
+    function DataFiltroPedido(const AValue: string): TDateTime;
+    function DescontoPedido(const AJsonText: string): Double;
+    function DiaFiltroInicial: Integer;
+    function DiaFiltroFinal: Integer;
+    function MesFiltro: string;
+    procedure EnsureFiltroCabecalho;
+    procedure CarregarMesesAsync;
+    procedure AtualizarDiasFiltro;
+    procedure FiltrosChange(Sender: TObject);
+    procedure NormalizarEditDia(AEdit: TEdit; const ADefault: string);
+    procedure AtualizarResumoPedidos(ATotal: Double; ADescSoma: Double; AQtd: Integer);
     procedure ImprimirPedido(const APedidoId: Integer);
     procedure ApplyResponsiveLayout;
     procedure CarregarPedidos;
@@ -109,22 +135,432 @@ var
   LUrl: string;
 begin
   LUrl := Trim(AUrl);
-  if SameText(LUrl, 'http://plasfan.ddns.com.br:9000') then
-    Exit('PLASFAN');
   if SameText(LUrl, 'http://plasfan.ddns.com.br:9004') then
-    Exit('FILHO DO CRIADO');
+    Exit('PLASFAN');
+{  if SameText(LUrl, 'http://plasfan.ddns.com.br:9004') then
+    Exit('FILHO DO CRIADO');}
   Result := LUrl;
 end;
 
+function TfrmPedidosEnviados.DataFiltroPedido(const AValue: string): TDateTime;
+var
+  LText: string;
+  LAno: Integer;
+  LMes: Integer;
+  LDia: Integer;
+begin
+  LText := Trim(AValue);
+  Result := 0;
+  if LText = '' then
+    Exit;
+  if (Length(LText) >= 10) and (LText[5] = '-') and (LText[8] = '-') then
+  begin
+    LAno := StrToIntDef(Copy(LText, 1, 4), 0);
+    LMes := StrToIntDef(Copy(LText, 6, 2), 0);
+    LDia := StrToIntDef(Copy(LText, 9, 2), 0);
+    if TryEncodeDate(LAno, LMes, LDia, Result) then
+      Exit;
+  end;
+  if TryISO8601ToDate(LText, Result, True) then
+    Exit;
+  if TryStrToDateTime(LText, Result) then
+    Exit;
+  if TryStrToDate(Copy(LText, 1, 10), Result) then
+    Exit;
+  Result := 0;
+end;
+
+function TfrmPedidosEnviados.DescontoPedido(const AJsonText: string): Double;
+begin
+  Result := JsonFieldAsFloat(AJsonText, 'desconto');
+  if SameValue(Result, 0) then
+    Result := JsonFieldAsFloat(AJsonText, 'desconto_geral');
+end;
+
+function TfrmPedidosEnviados.DiaFiltroInicial: Integer;
+begin
+  Result := EnsureRange(StrToIntDef(Trim(EdDiaInicial.Text), 1), 1, 31);
+end;
+
+function TfrmPedidosEnviados.DiaFiltroFinal: Integer;
+begin
+  Result := EnsureRange(StrToIntDef(Trim(EdDiaFinal.Text), DayOf(Date)), 1, 31);
+end;
+
+function TfrmPedidosEnviados.MesFiltro: string;
+begin
+  Result := '';
+  if Assigned(CbStatusPedidos) and (CbStatusPedidos.ItemIndex >= 0) then
+    Result := Trim(CbStatusPedidos.Items[CbStatusPedidos.ItemIndex]);
+end;
+
+procedure TfrmPedidosEnviados.NormalizarEditDia(AEdit: TEdit; const ADefault: string);
+var
+  LText: string;
+  LChar: Char;
+begin
+  if not Assigned(AEdit) then
+    Exit;
+
+  LText := '';
+  for LChar in AEdit.Text do
+    if CharInSet(LChar, ['0'..'9']) then
+      LText := LText + LChar;
+
+  if Length(LText) > 2 then
+    LText := Copy(LText, 1, 2);
+
+  if LText = '' then
+    LText := ADefault;
+
+  if AEdit.Text <> LText then
+  begin
+    FAjustandoDiaFiltro := True;
+    try
+      AEdit.Text := LText;
+      AEdit.GoToTextEnd;
+    finally
+      FAjustandoDiaFiltro := False;
+    end;
+  end;
+end;
+
+procedure TfrmPedidosEnviados.FiltrosChange(Sender: TObject);
+begin
+  if FAjustandoDiaFiltro or FAtualizandoFiltros then
+    Exit;
+
+  if Sender = CbStatusPedidos then
+    AtualizarDiasFiltro;
+
+  if Sender = EdDiaInicial then
+    NormalizarEditDia(EdDiaInicial, '01')
+  else if Sender = EdDiaFinal then
+    NormalizarEditDia(EdDiaFinal, '31');
+
+  if not Assigned(FFilterTimer) then
+  begin
+    FFilterTimer := TTimer.Create(Self);
+    FFilterTimer.Enabled := False;
+    FFilterTimer.Interval := 450;
+    FFilterTimer.OnTimer := FilterTimerTimer;
+  end;
+  FFilterTimer.Enabled := False;
+  FFilterTimer.Enabled := True;
+end;
+
+procedure TfrmPedidosEnviados.FilterTimerTimer(Sender: TObject);
+begin
+  if Assigned(FFilterTimer) then
+    FFilterTimer.Enabled := False;
+  CarregarPedidos;
+end;
+
+procedure TfrmPedidosEnviados.EnsureFiltroCabecalho;
+var
+  LMesAtual: string;
+  LMesIndex: Integer;
+
+  procedure SetupCard(ACard: TRectangle);
+  begin
+    ACard.Parent := LayoutRoot;
+    ACard.Fill.Color := TAlphaColorRec.White;
+    ACard.Stroke.Kind := TBrushKind.None;
+    ACard.XRadius := 12;
+    ACard.YRadius := 12;
+  end;
+
+  procedure SetupLabel(ALabel: TLabel; AParent: TFmxObject; const AText: string; AFontSize: Single;
+    AColor: TAlphaColor; ABold: Boolean);
+  begin
+    ALabel.Parent := AParent;
+    ALabel.StyledSettings := [];
+    ALabel.Text := AText;
+    ALabel.TextSettings.Font.Size := AFontSize;
+    ALabel.TextSettings.FontColor := AColor;
+    if ABold then
+      ALabel.TextSettings.Font.Style := [TFontStyle.fsBold]
+    else
+      ALabel.TextSettings.Font.Style := [];
+  end;
+
+begin
+  if Assigned(CbStatusPedidos) then
+    Exit;
+
+  CbStatusPedidos := TComboBox.Create(Self);
+  CbStatusPedidos.Parent := CardBusca;
+  LMesAtual := FormatDateTime('mm/yyyy', Date);
+  if CbStatusPedidos.Items.Count = 0 then
+    CbStatusPedidos.Items.Add(LMesAtual);
+  LMesIndex := CbStatusPedidos.Items.IndexOf(LMesAtual);
+  if LMesIndex < 0 then
+  begin
+    CbStatusPedidos.Items.Insert(0, LMesAtual);
+    LMesIndex := 0;
+  end;
+  CbStatusPedidos.ItemIndex := LMesIndex;
+  CbStatusPedidos.OnChange := FiltrosChange;
+
+  EdDiaInicial := TEdit.Create(Self);
+  EdDiaInicial.Parent := CardBusca;
+  EdDiaInicial.FilterChar := '0123456789';
+  EdDiaInicial.MaxLength := 2;
+  EdDiaInicial.KeyboardType := TVirtualKeyboardType.PhonePad;
+  EdDiaInicial.ReturnKeyType := TReturnKeyType.Done;
+  EdDiaInicial.Text := '01';
+  EdDiaInicial.OnChange := FiltrosChange;
+
+  EdDiaFinal := TEdit.Create(Self);
+  EdDiaFinal.Parent := CardBusca;
+  EdDiaFinal.FilterChar := '0123456789';
+  EdDiaFinal.MaxLength := 2;
+  EdDiaFinal.KeyboardType := TVirtualKeyboardType.PhonePad;
+  EdDiaFinal.ReturnKeyType := TReturnKeyType.Done;
+  EdDiaFinal.Text := Format('%.2d', [DaysInAMonth(YearOf(Date), MonthOf(Date))]);
+  EdDiaFinal.OnChange := FiltrosChange;
+
+  EdBuscar.TextPrompt := 'Nome do cliente ou pedido';
+  EdBuscar.OnChange := FiltrosChange;
+
+  CardTotalPedidos := TRectangle.Create(Self);
+  SetupCard(CardTotalPedidos);
+  CardDescMedio := TRectangle.Create(Self);
+  SetupCard(CardDescMedio);
+
+  LbTotalPedidosTitulo := TLabel.Create(Self);
+  SetupLabel(LbTotalPedidosTitulo, CardTotalPedidos, 'Total enviado', 12, $FF5D6B85, False);
+  LbTotalPedidosValor := TLabel.Create(Self);
+  SetupLabel(LbTotalPedidosValor, CardTotalPedidos, 'R$0,00', 14, TAlphaColorRec.Black, True);
+
+  LbDescMedioTitulo := TLabel.Create(Self);
+  SetupLabel(LbDescMedioTitulo, CardDescMedio, 'Desc. medio', 12, $FF5D6B85, False);
+  LbDescMedioValor := TLabel.Create(Self);
+  SetupLabel(LbDescMedioValor, CardDescMedio, '0,00%', 18, TAlphaColorRec.Black, True);
+end;
+
+procedure TfrmPedidosEnviados.AtualizarDiasFiltro;
+var
+  LMes: string;
+  LAno: Integer;
+  LMesNum: Integer;
+  LDias: Integer;
+begin
+  if not Assigned(EdDiaInicial) or not Assigned(EdDiaFinal) then
+    Exit;
+
+  LMes := MesFiltro;
+  LAno := StrToIntDef(Copy(LMes, 4, 4), YearOf(Date));
+  LMesNum := StrToIntDef(Copy(LMes, 1, 2), MonthOf(Date));
+  if not InRange(LMesNum, 1, 12) then
+    LMesNum := MonthOf(Date);
+  if LAno <= 0 then
+    LAno := YearOf(Date);
+
+  LDias := DaysInAMonth(LAno, LMesNum);
+  FAtualizandoFiltros := True;
+  try
+    if Trim(EdDiaInicial.Text) = '' then
+      EdDiaInicial.Text := '01';
+    if (Trim(EdDiaFinal.Text) = '') or (StrToIntDef(Trim(EdDiaFinal.Text), 0) > LDias) then
+      EdDiaFinal.Text := Format('%.2d', [LDias]);
+  finally
+    FAtualizandoFiltros := False;
+  end;
+end;
+
+procedure TfrmPedidosEnviados.CarregarMesesAsync;
+var
+  LCodRepresentante: Integer;
+begin
+  EnsureFiltroCabecalho;
+
+  LCodRepresentante := 0;
+  if Assigned(frmPrincipal) then
+    LCodRepresentante := frmPrincipal.id_representante;
+  if LCodRepresentante <= 0 then
+    Exit;
+
+  TThread.CreateAnonymousThread(
+    procedure
+    var
+      LMeses: TJSONArray;
+      LJsonText: string;
+    begin
+      LJsonText := '';
+      try
+        TMonitor.Enter(dmApp);
+        try
+          LMeses := dmApp.GetMesesDashboard(LCodRepresentante);
+          try
+            LJsonText := LMeses.ToJSON;
+          finally
+            LMeses.Free;
+          end;
+        finally
+          TMonitor.Exit(dmApp);
+        end;
+      except
+        LJsonText := '';
+      end;
+
+      TThread.Queue(nil,
+        procedure
+        var
+          LJsonValue: TJSONValue;
+          LArray: TJSONArray;
+          LValue: TJSONValue;
+          LObj: TJSONObject;
+          LMes: string;
+          LMesSelecionado: string;
+          LIndex: Integer;
+        begin
+          if (csDestroying in ComponentState) or not Assigned(CbStatusPedidos) then
+            Exit;
+
+          LJsonValue := TJSONObject.ParseJSONValue(LJsonText);
+          try
+            if not (LJsonValue is TJSONArray) then
+              Exit;
+
+            LArray := TJSONArray(LJsonValue);
+            LMesSelecionado := Trim(CbStatusPedidos.Text);
+            FAtualizandoFiltros := True;
+            try
+              for LValue in LArray do
+              begin
+                LMes := '';
+                if LValue is TJSONObject then
+                begin
+                  LObj := TJSONObject(LValue);
+                  if Assigned(LObj.GetValue('mes')) then
+                    LMes := Trim(LObj.GetValue('mes').Value);
+                end
+                else if Assigned(LValue) then
+                  LMes := Trim(LValue.Value);
+
+                if (LMes <> '') and (CbStatusPedidos.Items.IndexOf(LMes) < 0) then
+                  CbStatusPedidos.Items.Add(LMes);
+              end;
+
+              LIndex := CbStatusPedidos.Items.IndexOf(LMesSelecionado);
+              if LIndex < 0 then
+                LIndex := 0;
+              CbStatusPedidos.ItemIndex := LIndex;
+              AtualizarDiasFiltro;
+            finally
+              FAtualizandoFiltros := False;
+            end;
+          finally
+            LJsonValue.Free;
+          end;
+        end);
+    end).Start;
+end;
+procedure TfrmPedidosEnviados.AtualizarResumoPedidos(ATotal: Double; ADescSoma: Double; AQtd: Integer);
+var
+  LFS: TFormatSettings;
+begin
+  LFS := TFormatSettings.Create('pt-BR');
+  LbTotalPedidosValor.Text := 'R$' + FormatFloat('#,##0.00', ATotal, LFS);
+  if AQtd > 0 then
+    LbDescMedioValor.Text := FormatFloat('0.00', ADescSoma / AQtd, LFS) + '%'
+  else
+    LbDescMedioValor.Text := '0,00%';
+end;
+
 procedure TfrmPedidosEnviados.ApplyResponsiveLayout;
+var
+  LIsTabletPortrait: Boolean;
+  LBottom: Single;
+  LContentW: Single;
+  LX: Single;
+  LFooterH: Single;
 begin
   if not Assigned(LayoutRodape) then
     Exit;
+  EnsureFiltroCabecalho;
 
-  if (ClientHeight > ClientWidth) and IsXiaomiDevice then
-    LayoutRodape.Margins.Bottom := 50
+  LIsTabletPortrait := (ClientHeight > ClientWidth) and (ClientWidth >= 430);
+  LBottom := 8;
+  if ClientHeight > ClientWidth then
+    LBottom := 50;
+
+  if LIsTabletPortrait then
+  begin
+    TopBar.Height := 82;
+    LbTitulo.Position.Y := (TopBar.Height - LbTitulo.Height) * 0.75;
+
+    if ClientWidth >= 600 then
+      LContentW := Min(ClientWidth - 28, 760)
+    else
+      LContentW := Min(ClientWidth - 20, 620);
+    LX := (ClientWidth - LContentW) / 2;
+
+    CardBusca.Align := TAlignLayout.None;
+    CardBusca.SetBounds(LX, TopBar.Height + 8, LContentW, 130);
+    LbBuscar.Position.X := 18;
+    LbBuscar.Position.Y := 8;
+    EdBuscar.Position.X := 18;
+    EdBuscar.Position.Y := 34;
+    EdBuscar.Width := CardBusca.Width - 36;
+    CbStatusPedidos.SetBounds(18, 78, 128, 34);
+    EdDiaInicial.SetBounds(CbStatusPedidos.Position.X + CbStatusPedidos.Width + 12, 78, 58, 34);
+    EdDiaFinal.SetBounds(EdDiaInicial.Position.X + EdDiaInicial.Width + 12, 78, 58, 34);
+    BtnBuscar.Visible := False;
+
+    CardTotalPedidos.SetBounds(LX, CardBusca.Position.Y + CardBusca.Height + 10, (LContentW - 12) / 2, 78);
+    CardDescMedio.SetBounds(CardTotalPedidos.Position.X + CardTotalPedidos.Width + 12, CardTotalPedidos.Position.Y, CardTotalPedidos.Width, 78);
+    LbTotalPedidosTitulo.SetBounds(10, 10, CardTotalPedidos.Width - 20, 20);
+    LbTotalPedidosValor.SetBounds(10, 38, CardTotalPedidos.Width - 20, 26);
+    LbDescMedioTitulo.SetBounds(10, 10, CardDescMedio.Width - 20, 20);
+    LbDescMedioValor.SetBounds(10, 36, CardDescMedio.Width - 20, 30);
+
+    LFooterH := 58;
+    LayoutRodape.Align := TAlignLayout.None;
+    LayoutRodape.SetBounds(LX, ClientHeight - LFooterH - LBottom, LContentW, LFooterH);
+    LayoutRodape.Margins.Bottom := 0;
+    BtnImprimir.Align := TAlignLayout.None;
+    BtnCompartilhar.Align := TAlignLayout.None;
+    BtnCompartilhar.SetBounds(LayoutRodape.Width - BtnCompartilhar.Width, 1, BtnCompartilhar.Width, 56);
+    BtnImprimir.SetBounds(BtnCompartilhar.Position.X - BtnImprimir.Width - 12, 1, BtnImprimir.Width, 56);
+
+    LyListView.Align := TAlignLayout.None;
+    LyListView.SetBounds(LX, CardTotalPedidos.Position.Y + CardTotalPedidos.Height + 10,
+      LContentW, LayoutRodape.Position.Y - (CardTotalPedidos.Position.Y + CardTotalPedidos.Height) - 18);
+    if ClientWidth >= 600 then
+      LvPedidos.ItemAppearance.ItemHeight := 68
+    else
+      LvPedidos.ItemAppearance.ItemHeight := 70;
+    LvPedidos.ItemAppearanceObjects.ItemObjects.Text.Width := LContentW - 36;
+    LvPedidos.ItemAppearanceObjects.ItemObjects.Detail.Width := LContentW - 36;
+  end
   else
-    LayoutRodape.Margins.Bottom := 8;
+  begin
+    CardBusca.Height := 130;
+    EdBuscar.Width := CardBusca.Width - 36;
+    CbStatusPedidos.SetBounds(18, 78, 128, 34);
+    EdDiaInicial.SetBounds(158, 78, 58, 34);
+    EdDiaFinal.SetBounds(228, 78, 58, 34);
+    BtnBuscar.Visible := False;
+    CardTotalPedidos.SetBounds(10, CardBusca.Position.Y + CardBusca.Height + 8, (ClientWidth - 32) / 2, 78);
+    CardDescMedio.SetBounds(CardTotalPedidos.Position.X + CardTotalPedidos.Width + 12, CardTotalPedidos.Position.Y, CardTotalPedidos.Width, 78);
+    LbTotalPedidosTitulo.SetBounds(10, 10, CardTotalPedidos.Width - 20, 20);
+    LbTotalPedidosValor.SetBounds(10, 38, CardTotalPedidos.Width - 20, 26);
+    LbDescMedioTitulo.SetBounds(10, 10, CardDescMedio.Width - 20, 20);
+    LbDescMedioValor.SetBounds(10, 36, CardDescMedio.Width - 20, 30);
+    LyListView.Align := TAlignLayout.None;
+    LyListView.SetBounds(10, CardTotalPedidos.Position.Y + CardTotalPedidos.Height + 8,
+      ClientWidth - 20, ClientHeight - LayoutRodape.Height - LayoutRodape.Margins.Bottom - (CardTotalPedidos.Position.Y + CardTotalPedidos.Height) - 20);
+    LayoutRodape.Margins.Bottom := LBottom;
+    LvPedidos.ItemAppearance.ItemHeight := 50;
+  end;
+
+  CardTotalPedidos.Visible := True;
+  CardDescMedio.Visible := True;
+  CardTotalPedidos.BringToFront;
+  CardDescMedio.BringToFront;
+  LayoutRodape.BringToFront;
 end;
 
 procedure TfrmPedidosEnviados.Resize;
@@ -446,7 +882,7 @@ begin
      TryISO8601ToDate(S, D, True) then
     Exit(FormatDateTime('dd/mm/yyyy hh:nn:ss', D));
 
-  // fallback: mantÃ©m texto original se nÃ£o conseguir converter
+  // fallback: mantém texto original se não conseguir converter
   Result := S;
 end;
 
@@ -623,12 +1059,25 @@ var
   LNomeCliente: string;
   LData: string;
   LTotal: Double;
+  LDescSoma: Double;
+  LTotalGeral: Double;
   LDt: TDateTime;
   LFS: TFormatSettings;
   LCodCliente: Integer;
+  LDiaIni: Integer;
+  LDiaFim: Integer;
+  LMes: string;
+  LQtd: Integer;
 begin
+  EnsureFiltroCabecalho;
   LFS := TFormatSettings.Create('pt-BR');
   LBusca := LowerCase(Trim(EdBuscar.Text));
+  LDiaIni := DiaFiltroInicial;
+  LDiaFim := DiaFiltroFinal;
+  LMes := MesFiltro;
+  LTotalGeral := 0;
+  LDescSoma := 0;
+  LQtd := 0;
   LvPedidos.Items.BeginUpdate;
   try
     LvPedidos.Items.Clear;
@@ -653,20 +1102,29 @@ begin
         if LNomeCliente = '' then
           LNomeCliente := 'Pedido ' + Q.FieldByName('id').AsString;
 
-        if (LBusca = '') or (Pos(LBusca, LowerCase(LNomeCliente)) > 0) then
+        LDt := DataFiltroPedido(Q.FieldByName('dt_ref').AsString);
+        if (LDt > 0) and
+           ((LMes = '') or SameText(FormatDateTime('mm/yyyy', LDt), LMes)) and
+           ((DayOf(LDt) >= LDiaIni) and (DayOf(LDt) <= LDiaFim)) and
+           ((LBusca = '') or (Pos(LBusca, LowerCase(LNomeCliente)) > 0) or
+            (Pos(LBusca, LowerCase(Q.FieldByName('numdoc_remote').AsString)) > 0) or
+            (Pos(LBusca, Q.FieldByName('id').AsString) > 0)) then
         begin
           LData := FormatarDataHora(Q.FieldByName('dt_ref').AsString);
 
           LTotal := TotalLiquidoPedido(Q.FieldByName('id').AsInteger);
+          LTotalGeral := LTotalGeral + LTotal;
+          LDescSoma := LDescSoma + DescontoPedido(Q.FieldByName('vendas1_json').AsString);
+          Inc(LQtd);
 
           LItem := LvPedidos.Items.Add;
           LItem.Tag := Q.FieldByName('id').AsInteger;
-          LItem.Text := LNomeCliente;
+          LItem.Text := Format('Pedido %s - %s', [Q.FieldByName('numdoc_remote').AsString, LNomeCliente]);
           LItem.Detail := Format(
-            'Data/hora de envio: %s  |  Pedido: %s' + sLineBreak + 'Total Liquido: R$ %s',
+            '%s  R$ %s  Desc %.2f%%',
             [LData,
-             Q.FieldByName('numdoc_remote').AsString,
-             FormatFloat('#,###,##0.00', LTotal, LFS)]
+             FormatFloat('#,###,##0.00', LTotal, LFS),
+             DescontoPedido(Q.FieldByName('vendas1_json').AsString)]
           );
         end;
         Q.Next;
@@ -684,21 +1142,25 @@ begin
   finally
     LvPedidos.Items.EndUpdate;
   end;
+  AtualizarResumoPedidos(LTotalGeral, LDescSoma, LQtd);
 end;
 
 procedure TfrmPedidosEnviados.FormShow(Sender: TObject);
 begin
-  LbTitulo.Text := 'Pedidos Enviados';
+    OnClose := FormClose;
+LbTitulo.Text := 'Pedidos Enviados';
   //LvPedidos.ItemAppearanceClassName := 'ListItem';
   BtnCompartilhar.OnClick := BtnCompartilharClick;
   LbBtnCompartilhar.OnClick := BtnCompartilharClick;
   ApplyResponsiveLayout;
+  EnsureFiltroCabecalho;
+  AtualizarDiasFiltro;
+  CarregarMesesAsync;
   CarregarPedidos;
 end;
 
 procedure TfrmPedidosEnviados.FormActivate(Sender: TObject);
 begin
-  CarregarPedidos;
 end;
 
 procedure TfrmPedidosEnviados.BtnBuscarClick(Sender: TObject);
@@ -766,5 +1228,10 @@ begin
 {$ENDIF}
 end;
 
-end.
+procedure TfrmPedidosEnviados.FormClose(Sender: TObject; var Action: TCloseAction);
+begin
+  Action := TCloseAction.caFree;
+  frmPedidosEnviados := nil;
+end;
 
+end.

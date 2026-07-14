@@ -1,4 +1,4 @@
-ï»¿unit unClienteDetalhe;
+unit unClienteDetalhe;
 
 interface
 
@@ -53,11 +53,14 @@ type
     FCodigo: string;
     FCidade: string;
     FDocDireita: string;
+    procedure FormClose(Sender: TObject; var Action: TCloseAction);
     procedure RenderCliente;
     procedure CarregarDoSqlite(const AId: string);
     function SafeFieldAsString(AQuery: TFDQuery; const ACampo: string): string;
     function SafeFieldAsCurrency(AQuery: TFDQuery; const ACampo: string): Currency;
     procedure ApplyOrientationLayout;
+  protected
+    procedure DoShow; override;
   public
     procedure SetCliente(const ANome, ACodigo, ACidade: string);
   end;
@@ -114,6 +117,7 @@ var
   LColW: Single;
   LLeftX: Single;
   LRightX: Single;
+  LBottomSafe: Single;
 begin
   if Assigned(CardSituacao) then
     CardSituacao.Visible := False;
@@ -167,8 +171,8 @@ begin
     CardSituacao.Position.X := LRightX;
     CardSituacao.Position.Y := LTop + CardEndereco.Height + LGap;
 
-    Layout2.Align := TAlignLayout.MostRight; // Pedido/Gravar Ã  direita
-    Layout3.Align := TAlignLayout.MostLeft;  // Cancelar Ã  esquerda
+    Layout2.Align := TAlignLayout.MostRight; // Pedido/Gravar à direita
+    Layout3.Align := TAlignLayout.MostLeft;  // Cancelar à esquerda
     Layout2.Width := Width / 2;
     Layout3.Width := Width / 2;
     BtnPedido.Align := TAlignLayout.Client;
@@ -187,12 +191,12 @@ begin
     LbTitulo.Visible := True;
 
     PresentedScrollBox1.Padding.Top := 0;
-    PresentedScrollBox1.Padding.Bottom := 0;
-    Layout1.Height := 50;
-    if IsXiaomiDevice then
-      Layout1.Margins.Bottom := 50
-    else
-      Layout1.Margins.Bottom := 0;
+    LBottomSafe := 58;
+
+    Layout1.Align := TAlignLayout.MostBottom;
+    Layout1.Height := 58 + LBottomSafe;
+    Layout1.Margins.Bottom := 0;
+    PresentedScrollBox1.Padding.Bottom := Layout1.Height + 8;
 
     CardPerfil.Align := TAlignLayout.MostTop;
     CardContato.Align := TAlignLayout.MostTop;
@@ -223,16 +227,18 @@ begin
     CardEndereco.Position.Y := 384;
     CardSituacao.Position.Y := 512;
 
-    Layout2.Align := TAlignLayout.MostRight; // Pedido/Gravar Ã  direita
-    Layout3.Align := TAlignLayout.MostLeft;  // Cancelar Ã  esquerda
-    Layout2.Width := 180;
-    Layout3.Width := 180;
+    Layout2.Align := TAlignLayout.MostRight; // Pedido/Gravar à direita
+    Layout3.Align := TAlignLayout.MostLeft;  // Cancelar à esquerda
+    Layout2.Width := Width / 2;
+    Layout3.Width := Width / 2;
     BtnPedido.Align := TAlignLayout.Client;
     BtnCancelar.Align := TAlignLayout.Client;
-    BtnCancelar.Width := 123;
-    BtnPedido.Width := 123;
-    BtnCancelar.Position.Y := 600;
-    BtnPedido.Position.Y := 600;
+    BtnCancelar.Width := 0;
+    BtnPedido.Width := 0;
+    BtnCancelar.Position.Y := 0;
+    BtnPedido.Position.Y := 0;
+    BtnCancelar.Margins.Bottom := LBottomSafe + 5;
+    BtnPedido.Margins.Bottom := LBottomSafe + 5;
 
   end;
 end;
@@ -423,6 +429,18 @@ begin
   RenderCliente;
   CarregarDoSqlite(ACodigo);
   ApplyOrientationLayout;
+end;
+
+procedure TfrmClienteDetalhe.DoShow;
+begin
+  inherited;
+  OnClose := FormClose;
+end;
+
+procedure TfrmClienteDetalhe.FormClose(Sender: TObject; var Action: TCloseAction);
+begin
+  Action := TCloseAction.caFree;
+  frmClienteDetalhe := nil;
 end;
 
 end.

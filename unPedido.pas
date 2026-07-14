@@ -1,4 +1,4 @@
-ï»¿unit unPedido;
+unit unPedido;
 
 interface
 
@@ -62,10 +62,32 @@ type
     CbModoBuscaProd: TComboBox;
     LayoutProdutosList: TLayout;
     LvProdutos: TListView;
+    TabPromocao: TTabItem;
+    LayoutPromocao: TLayout;
+    CardBuscaPromocao: TRectangle;
+    LbBuscarPromocao: TLabel;
+    EdBuscarPromocao: TEdit;
+    CbModoBuscaPromocao: TComboBox;
+    BtnBuscarPromocao: TImage;
+    LayoutPromocaoList: TLayout;
+    LvPromocao: TListView;
     TabUltimasCompras: TTabItem;
+    LayoutUltimasCompras: TLayout;
+    CardBuscaUltimas: TRectangle;
+    LbBuscarUltimas: TLabel;
+    EdBuscarUltimas: TEdit;
+    CbModoBuscaUltimas: TComboBox;
+    BtnBuscarUltimas: TImage;
+    LayoutUltimasList: TLayout;
     LvUltimasCompras: TListView;
     TabDigitados: TTabItem;
     LayoutDigitados: TLayout;
+    CardBuscaDigitados: TRectangle;
+    LbBuscarDigitados: TLabel;
+    EdBuscarDigitados: TEdit;
+    CbModoBuscaDigitados: TComboBox;
+    BtnBuscarDigitados: TImage;
+    LayoutDigitadosList: TLayout;
     LvDigitados: TListView;
     LayoutDigitadosAcoes: TLayout;
     BtnEditarDigitado: TRectangle;
@@ -97,6 +119,9 @@ type
     LayoutTotDesc: TLayout;
     LbTotDescTitulo: TLabel;
     LbTotDescValor: TLabel;
+    LayoutTotCV: TLayout;
+    LbTotCVTitulo: TLabel;
+    LbTotCVValor: TLabel;
     LayoutTotLiquido: TLayout;
     LbTotLiquidoTitulo: TLabel;
     LbTotLiquidoValor: TLabel;
@@ -117,6 +142,15 @@ type
     procedure BtnBuscarProdClick(Sender: TObject);
     procedure BtnBuscarProdTap(Sender: TObject; const Point: TPointF);
     procedure CbModoBuscaProdChange(Sender: TObject);
+    procedure BtnBuscarPromocaoClick(Sender: TObject);
+    procedure BtnBuscarPromocaoTap(Sender: TObject; const Point: TPointF);
+    procedure CbModoBuscaPromocaoChange(Sender: TObject);
+    procedure BtnBuscarUltimasClick(Sender: TObject);
+    procedure BtnBuscarUltimasTap(Sender: TObject; const Point: TPointF);
+    procedure CbModoBuscaUltimasChange(Sender: TObject);
+    procedure BtnBuscarDigitadosClick(Sender: TObject);
+    procedure BtnBuscarDigitadosTap(Sender: TObject; const Point: TPointF);
+    procedure CbModoBuscaDigitadosChange(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure LvProdutosItemClick(const Sender: TObject; const AItem: TListViewItem);
     procedure LvUltimasComprasItemClick(const Sender: TObject; const AItem: TListViewItem);
@@ -124,9 +158,9 @@ type
     procedure BtnExcluirDigitadoClick(Sender: TObject);
   private
     FTabHeader: TLayout;
-    FTabButtons: array[0..4] of TSpeedButton;
-    FTabImages: array[0..4] of TImage;
-    FTabLabels: array[0..4] of TLabel;
+    FTabButtons: array[0..5] of TSpeedButton;
+    FTabImages: array[0..5] of TImage;
+    FTabLabels: array[0..5] of TLabel;
     FClienteNome: string;
     FClienteCodigo: string;
     FClienteCidade: string;
@@ -144,15 +178,25 @@ type
     LbEndereco1Dyn: TLabel;
     LbEndereco2Dyn: TLabel;
     FVoltarParaPedidosDigitados: Boolean;
+    FProdutoImagemSubPorProduto: TDictionary<string, string>;
+    FProdutoImagemCache: TObjectDictionary<string, TBitmap>;
+    FProdutoImagemTimer: TTimer;
+    FProdutoImagemCursor: Integer;
+    FProdutoImagemCampoImagem: string;
     procedure EnsureCardContatoEndereco;
+    procedure AjustarCardContatoEndereco;
     function SafeFieldAsString(AQuery: TFDQuery; const ACampo: string): string;
     function SafeFieldAsCurrency(AQuery: TFDQuery; const ACampo: string): Currency;
     function FormatarNumero(const AValue: Double; const ADecimals: Integer = 2): string;
     function FormatarMoeda(const AValue: Double): string;
+    function ObterCodRepresentanteLocal: Integer;
+    function CalcularPercComissaoProduto(const ACodProduto: string; const ADescPct: Double;
+      const ACodRepresentante: Integer; const AFuncionario: string): Double;
     procedure FecharPedido;
     procedure CancelarPedidoAtual;
     procedure CarregarSituacaoDoSqlite(const ACodigo: string);
     procedure ListarProdutos;
+    procedure ListarPromocoes;
     procedure ListarUltimasCompras;
     procedure ListarItensDigitados;
     procedure AtualizarTotaisPedido;
@@ -178,6 +222,11 @@ type
     function ObterItemDigitadoSelecionado(out AItemOrd: Integer; out AVendas2Json: string): Boolean;
     procedure EditarItemDigitado(const AItemOrd: Integer; const AVendas2Json: string);
     procedure ExcluirItemDigitado(const AItemOrd: Integer);
+    procedure PararCargaImagensProdutos;
+    procedure IniciarCargaImagensProdutos(const ACampoImagem: string);
+    procedure ProdutoImagemTimer(Sender: TObject);
+    function CarregarImagemSubcategoria(const ASubId, ACampoImagem: string): TBitmap;
+    procedure AtribuirImagemProduto(AItem: TListViewItem; ABmp: TBitmap);
   protected
     procedure DoShow; override;
     procedure Resize; override;
@@ -192,6 +241,7 @@ type
     procedure CarregarPedidoDigitado(const APedidoId: Integer);
     procedure AtualizarOutboundPedido;
     procedure AtualizarContadorItensDigitados;
+    procedure RestaurarPedidoItem(const AExtraJson: string);
   end;
 
 var
@@ -254,21 +304,36 @@ end;
 
 procedure TfrmPedido.HandleClose(Sender: TObject; var Action: TCloseAction);
 begin
+  PararCargaImagensProdutos;
+  FreeAndNil(FProdutoImagemTimer);
+  FreeAndNil(FProdutoImagemSubPorProduto);
+  FreeAndNil(FProdutoImagemCache);
   AtualizarTotaisPedido;
   if (outboundPedidoId > 0) and (TotalLiquidoAtual <= 0) then
     CancelarPedidoAtual;
+  Action := TCloseAction.caFree;
+  frmPedido := nil;
 end;
 
 procedure TfrmPedido.EnsureTabHeader;
 var
   I: Integer;
-  LCaptions: array[0..4] of string;
+  LCaptions: array[0..5] of string;
+  LImageIndexes: array[0..5] of Integer;
 begin
   LCaptions[0] := 'Cliente';
   LCaptions[1] := 'Produtos';
-  LCaptions[2] := 'Ãšltimas';
-  LCaptions[3] := 'Digitados';
-  LCaptions[4] := 'Total';
+  LCaptions[2] := 'Promoção';
+  LCaptions[3] := 'Últimas';
+  LCaptions[4] := 'Digitados';
+  LCaptions[5] := 'Total';
+
+  LImageIndexes[0] := 0;
+  LImageIndexes[1] := 1;
+  LImageIndexes[2] := 2;
+  LImageIndexes[3] := 3;
+  LImageIndexes[4] := 4;
+  LImageIndexes[5] := 5;
 
   if not Assigned(LayoutRoot) then
     Exit;
@@ -292,7 +357,7 @@ begin
       FTabButtons[I].Tag := I;
       FTabButtons[I].OnClick := TabHeaderClick;
       FTabButtons[I].Images := ImageList1;
-      FTabButtons[I].ImageIndex := I;
+      FTabButtons[I].ImageIndex := LImageIndexes[I];
       FTabButtons[I].StyledSettings := [];
       FTabButtons[I].TintColor := TAlphaColor($FF5B6578);
       FTabButtons[I].Text := '';
@@ -307,8 +372,8 @@ begin
       FTabImages[I].Width := 22;
       FTabImages[I].Height := 22;
       if Assigned(ImageList1) and (ImageList1.Source <> nil) and
-         (I >= 0) and (I < ImageList1.Source.Count) then
-        FTabImages[I].MultiResBitmap.Assign(ImageList1.Source.Items[I].MultiResBitmap);
+         (LImageIndexes[I] >= 0) and (LImageIndexes[I] < ImageList1.Source.Count) then
+        FTabImages[I].MultiResBitmap.Assign(ImageList1.Source.Items[LImageIndexes[I]].MultiResBitmap);
 
       FTabLabels[I] := TLabel.Create(Self);
       FTabLabels[I].Parent := FTabHeader;
@@ -372,6 +437,7 @@ end;
 procedure TfrmPedido.ApplyResponsiveLayout;
 var
   LIsLandscape: Boolean;
+  LIsTabletPortrait: Boolean;
   LBottomMargin: Single;
   LFooterH: Single;
   LFooterTotalH: Single;
@@ -385,6 +451,12 @@ var
   LFooterTotal: TLayout;
   LLeftArea: TLayout;
   LRightArea: TLayout;
+  LProdutosRoot: TControl;
+  LPromocaoRoot: TControl;
+  LPromocaoList: TControl;
+  LProdutosScroll: TControl;
+  LListW: Single;
+  LListX: Single;
   I: Integer;
   procedure AjustarLarguraListView(ALv: TListView; AReservaDireita: Single = 100);
   var
@@ -399,24 +471,58 @@ var
     ALv.ItemAppearanceObjects.ItemEditObjects.Detail.Width := LTextW;
   end;
   procedure AjustarAparenciaProdutos;
-  begin
-    if not Assigned(LvProdutos) then
-      Exit;
+    procedure AjustarLista(ALv: TListView);
+    begin
+      if not Assigned(ALv) then
+        Exit;
 
-    LvProdutos.ItemAppearance.ItemHeight := 104;
-    LvProdutos.EditMode := False;
-    LvProdutos.ItemAppearanceObjects.ItemObjects.Text.WordWrap := True;
-    LvProdutos.ItemAppearanceObjects.ItemObjects.Text.Height := 40;
-    LvProdutos.ItemAppearanceObjects.ItemObjects.Text.PlaceOffset.Y := 1;
-    LvProdutos.ItemAppearanceObjects.ItemObjects.Detail.Height := 19;
-    LvProdutos.ItemAppearanceObjects.ItemObjects.Detail.PlaceOffset.Y := 78;
-    LvProdutos.ItemAppearanceObjects.ItemObjects.Detail.TextVertAlign := TTextAlign.Leading;
-    LvProdutos.ItemAppearanceObjects.ItemEditObjects.Text.WordWrap := True;
-    LvProdutos.ItemAppearanceObjects.ItemEditObjects.Text.Height := 40;
-    LvProdutos.ItemAppearanceObjects.ItemEditObjects.Text.PlaceOffset.Y := 1;
-    LvProdutos.ItemAppearanceObjects.ItemEditObjects.Detail.Height := 20;
-    LvProdutos.ItemAppearanceObjects.ItemEditObjects.Detail.PlaceOffset.Y := 78;
-    LvProdutos.ItemAppearanceObjects.ItemEditObjects.Detail.TextVertAlign := TTextAlign.Leading;
+      if LIsLandscape or LIsTabletPortrait then
+        ALv.ItemAppearance.ItemHeight := 76
+      else
+        ALv.ItemAppearance.ItemHeight := 82;
+      ALv.EditMode := False;
+      ALv.ItemAppearanceObjects.ItemObjects.Accessory.Visible := False;
+
+      if LIsLandscape or LIsTabletPortrait then
+      begin
+        ALv.ItemAppearanceObjects.ItemObjects.Image.Width := 56;
+        ALv.ItemAppearanceObjects.ItemObjects.Image.Height := 56;
+      end
+      else
+      begin
+        ALv.ItemAppearanceObjects.ItemObjects.Image.Width := 50;
+        ALv.ItemAppearanceObjects.ItemObjects.Image.Height := 50;
+      end;
+      ALv.ItemAppearanceObjects.ItemObjects.Image.PlaceOffset.X := 0;
+      ALv.ItemAppearanceObjects.ItemObjects.Image.PlaceOffset.Y := 0;
+
+      if LIsLandscape or LIsTabletPortrait then
+        ALv.ItemAppearanceObjects.ItemObjects.Text.Font.Size := 13
+      else
+        ALv.ItemAppearanceObjects.ItemObjects.Text.Font.Size := 12;
+      ALv.ItemAppearanceObjects.ItemObjects.Text.WordWrap := True;
+      ALv.ItemAppearanceObjects.ItemObjects.Text.Height := 40;
+      if LIsLandscape or LIsTabletPortrait then
+        ALv.ItemAppearanceObjects.ItemObjects.Text.PlaceOffset.X := 64
+      else
+        ALv.ItemAppearanceObjects.ItemObjects.Text.PlaceOffset.X := 50;
+      ALv.ItemAppearanceObjects.ItemObjects.Text.PlaceOffset.Y := 10;
+
+      if LIsLandscape or LIsTabletPortrait then
+        ALv.ItemAppearanceObjects.ItemObjects.Detail.Font.Size := 11
+      else
+        ALv.ItemAppearanceObjects.ItemObjects.Detail.Font.Size := 10.5;
+      ALv.ItemAppearanceObjects.ItemObjects.Detail.Height := 20;
+      if LIsLandscape or LIsTabletPortrait then
+        ALv.ItemAppearanceObjects.ItemObjects.Detail.PlaceOffset.X := 64
+      else
+        ALv.ItemAppearanceObjects.ItemObjects.Detail.PlaceOffset.X := 50;
+      ALv.ItemAppearanceObjects.ItemObjects.Detail.PlaceOffset.Y := 50;
+      ALv.ItemAppearanceObjects.ItemObjects.Detail.TextVertAlign := TTextAlign.Leading;
+    end;
+  begin
+    AjustarLista(LvProdutos);
+    AjustarLista(LvPromocao);
   end;
   procedure AjustarProdutosPaisagem;
   var
@@ -428,15 +534,36 @@ var
     if not Assigned(LvProdutos) then
       Exit;
 
-    //AjustarAparenciaProdutos;
+    AjustarAparenciaProdutos;
 
-    if LIsLandscape then
+    if LIsLandscape or LIsTabletPortrait then
     begin
       if Assigned(CardBuscaProd) then
       begin
-        CardBuscaProd.Height := 48;
-        CardBuscaProd.Margins.Left := 8;
-        CardBuscaProd.Margins.Right := 8;
+        if LIsTabletPortrait then
+        begin
+          CardBuscaProd.Height := 76;
+          CardBuscaProd.Margins.Left := 12;
+          CardBuscaProd.Margins.Right := 12;
+          if Assigned(CardBuscaPromocao) then
+          begin
+            CardBuscaPromocao.Height := CardBuscaProd.Height;
+            CardBuscaPromocao.Margins.Left := CardBuscaProd.Margins.Left;
+            CardBuscaPromocao.Margins.Right := CardBuscaProd.Margins.Right;
+          end;
+        end
+        else
+        begin
+          CardBuscaProd.Height := 48;
+          CardBuscaProd.Margins.Left := 8;
+          CardBuscaProd.Margins.Right := 8;
+          if Assigned(CardBuscaPromocao) then
+          begin
+            CardBuscaPromocao.Height := CardBuscaProd.Height;
+            CardBuscaPromocao.Margins.Left := CardBuscaProd.Margins.Left;
+            CardBuscaPromocao.Margins.Right := CardBuscaProd.Margins.Right;
+          end;
+        end;
       end;
 
       if Assigned(CardBuscaProd) then
@@ -444,38 +571,105 @@ var
       else
         LInnerW := 320;
 
-      LBtnW := 95;
-      LComboW := 120;
+      if LIsTabletPortrait then
+      begin
+        LBtnW := 58;
+        LComboW := 132;
+      end
+      else
+      begin
+        LBtnW := 95;
+        LComboW := 120;
+      end;
       LEditW := Max(120, LInnerW - (LComboW + LBtnW + 8));
 
       if Assigned(LbBuscarProd) then
-        LbBuscarProd.Visible := False;
+      begin
+        LbBuscarProd.Visible := LIsTabletPortrait;
+        if LIsTabletPortrait then
+          LbBuscarProd.Position.Y := 4;
+      end;
+      if Assigned(LbBuscarPromocao) then
+      begin
+        LbBuscarPromocao.Visible := LIsTabletPortrait;
+        if LIsTabletPortrait then
+          LbBuscarPromocao.Position.Y := 4;
+      end;
       if Assigned(EdBuscarProd) then
       begin
         EdBuscarProd.Position.X := 18;
-        EdBuscarProd.Position.Y := 8;
+        if LIsTabletPortrait then
+          EdBuscarProd.Position.Y := 30
+        else
+          EdBuscarProd.Position.Y := 8;
         EdBuscarProd.Width := LEditW;
+      end;
+      if Assigned(EdBuscarPromocao) then
+      begin
+        EdBuscarPromocao.Position.X := 18;
+        if LIsTabletPortrait then
+          EdBuscarPromocao.Position.Y := 30
+        else
+          EdBuscarPromocao.Position.Y := 8;
+        EdBuscarPromocao.Width := LEditW;
       end;
 
       if Assigned(CbModoBuscaProd) then
       begin
         if Assigned(EdBuscarProd) then
           CbModoBuscaProd.Position.X := EdBuscarProd.Position.X + LEditW + 4;
-        CbModoBuscaProd.Position.Y := 8;
+        if LIsTabletPortrait then
+          CbModoBuscaProd.Position.Y := 30
+        else
+          CbModoBuscaProd.Position.Y := 8;
         CbModoBuscaProd.Width := LComboW;
+      end;
+      if Assigned(CbModoBuscaPromocao) then
+      begin
+        if Assigned(EdBuscarPromocao) then
+          CbModoBuscaPromocao.Position.X := EdBuscarPromocao.Position.X + LEditW + 4;
+        if LIsTabletPortrait then
+          CbModoBuscaPromocao.Position.Y := 30
+        else
+          CbModoBuscaPromocao.Position.Y := 8;
+        CbModoBuscaPromocao.Width := LComboW;
       end;
       if Assigned(BtnBuscarProd) then
       begin
-        BtnBuscarProd.Position.Y := 8;
+        if LIsTabletPortrait then
+          BtnBuscarProd.Position.Y := 30
+        else
+          BtnBuscarProd.Position.Y := 8;
         BtnBuscarProd.Width := LBtnW;
         if Assigned(CbModoBuscaProd) then
           BtnBuscarProd.Position.X := CbModoBuscaProd.Position.X + LComboW + 4;
       end;
+      if Assigned(BtnBuscarPromocao) then
+      begin
+        if LIsTabletPortrait then
+          BtnBuscarPromocao.Position.Y := 30
+        else
+          BtnBuscarPromocao.Position.Y := 8;
+        BtnBuscarPromocao.Width := LBtnW;
+        if Assigned(CbModoBuscaPromocao) then
+          BtnBuscarPromocao.Position.X := CbModoBuscaPromocao.Position.X + LComboW + 4;
+      end;
 
       if Assigned(LayoutProdutosList) then
         LayoutProdutosList.Margins.Top := 2;
+      if Assigned(LayoutPromocaoList) then
+        LayoutPromocaoList.Margins.Top := 2;
 
-      //AjustarLarguraListView(LvProdutos, 1);
+      if LIsTabletPortrait then
+      begin
+        AjustarLarguraListView(LvProdutos, 96);
+        AjustarLarguraListView(LvPromocao, 96);
+      end
+      else
+      begin
+        AjustarLarguraListView(LvProdutos, 92);
+        AjustarLarguraListView(LvPromocao, 92);
+      end;
     end
     else
     begin
@@ -484,34 +678,77 @@ var
         CardBuscaProd.Height := 96;
         CardBuscaProd.Margins.Left := 10;
         CardBuscaProd.Margins.Right := 10;
+        if Assigned(CardBuscaPromocao) then
+        begin
+          CardBuscaPromocao.Height := CardBuscaProd.Height;
+          CardBuscaPromocao.Margins.Left := CardBuscaProd.Margins.Left;
+          CardBuscaPromocao.Margins.Right := CardBuscaProd.Margins.Right;
+        end;
       end;
+      if Assigned(CardBuscaProd) then
+        LInnerW := Max(240, CardBuscaProd.Width - 36)
+      else
+        LInnerW := Max(240, ClientWidth - 56);
       if Assigned(LbBuscarProd) then
       begin
         LbBuscarProd.Visible := True;
         LbBuscarProd.Position.Y := 4;
       end;
+      if Assigned(LbBuscarPromocao) then
+      begin
+        LbBuscarPromocao.Visible := True;
+        LbBuscarPromocao.Position.Y := 4;
+      end;
       if Assigned(EdBuscarProd) then
       begin
+        EdBuscarProd.Position.X := 18;
         EdBuscarProd.Position.Y := 20.8;
-        EdBuscarProd.Width := 288.75;
+        EdBuscarProd.Width := LInnerW;
+      end;
+      if Assigned(EdBuscarPromocao) then
+      begin
+        EdBuscarPromocao.Position.X := 18;
+        EdBuscarPromocao.Position.Y := 20.8;
+        EdBuscarPromocao.Width := LInnerW;
       end;
       if Assigned(CbModoBuscaProd) then
       begin
         CbModoBuscaProd.Position.X := 18;
         CbModoBuscaProd.Position.Y := 59.2;
-        CbModoBuscaProd.Width := 222;
+        CbModoBuscaProd.Width := Max(160, LInnerW - 68);
+      end;
+      if Assigned(CbModoBuscaPromocao) then
+      begin
+        CbModoBuscaPromocao.Position.X := 18;
+        CbModoBuscaPromocao.Position.Y := 59.2;
+        CbModoBuscaPromocao.Width := Max(160, LInnerW - 68);
       end;
       if Assigned(BtnBuscarProd) then
       begin
         BtnBuscarProd.Position.Y := 59.2;
         BtnBuscarProd.Width := 61.5;
-        BtnBuscarProd.Position.X := 246;
+        if Assigned(CbModoBuscaProd) then
+          BtnBuscarProd.Position.X := CbModoBuscaProd.Position.X + CbModoBuscaProd.Width + 6
+        else
+          BtnBuscarProd.Position.X := 246;
+      end;
+      if Assigned(BtnBuscarPromocao) then
+      begin
+        BtnBuscarPromocao.Position.Y := 59.2;
+        BtnBuscarPromocao.Width := 61.5;
+        if Assigned(CbModoBuscaPromocao) then
+          BtnBuscarPromocao.Position.X := CbModoBuscaPromocao.Position.X + CbModoBuscaPromocao.Width + 6
+        else
+          BtnBuscarPromocao.Position.X := 246;
       end;
 
       if Assigned(LayoutProdutosList) then
         LayoutProdutosList.Margins.Top := 10;
+      if Assigned(LayoutPromocaoList) then
+        LayoutPromocaoList.Margins.Top := 10;
 
-      AjustarLarguraListView(LvProdutos, 105);
+      AjustarLarguraListView(LvProdutos, 110);
+      AjustarLarguraListView(LvPromocao, 110);
     end;
   end;
   procedure AjustarClientePaisagem;
@@ -573,6 +810,54 @@ var
       if Assigned(lbPrazoPgto) then lbPrazoPgto.TextSettings.Font.Size := 16;
       if Assigned(Label3) then Label3.TextSettings.Font.Size := 16;
       if Assigned(Label2) then Label2.TextSettings.Font.Size := 16;
+    end
+    else if LIsTabletPortrait then
+    begin
+      LGap := 12;
+      LColW := Min(ClientWidth - 36, 560);
+      LLeftX := (ClientWidth - LColW) / 2;
+      LTopY := 10;
+
+      CardPerfil.Align := TAlignLayout.None;
+      CardContatoDyn.Align := TAlignLayout.None;
+      CardEnderecoDyn.Align := TAlignLayout.None;
+      if Assigned(CardSituacao) then
+        CardSituacao.Align := TAlignLayout.None;
+
+      if Assigned(CardPerfil) then CardPerfil.Height := 112;
+      if Assigned(CardSituacao) then CardSituacao.Height := 86;
+      if Assigned(CardContatoDyn) then CardContatoDyn.Height := 96;
+      if Assigned(CardEnderecoDyn) then CardEnderecoDyn.Height := 96;
+      if Assigned(CardFormaPgto) then CardFormaPgto.Height := 66;
+      if Assigned(Rectangle1) then Rectangle1.Height := 66;
+
+      CardPerfil.Width := LColW;
+      CardContatoDyn.Width := LColW;
+      CardEnderecoDyn.Width := LColW;
+
+      CardPerfil.Position.X := LLeftX;
+      CardPerfil.Position.Y := LTopY;
+      CardContatoDyn.Position.X := LLeftX;
+      CardContatoDyn.Position.Y := CardPerfil.Position.Y + CardPerfil.Height + LGap;
+      CardEnderecoDyn.Position.X := LLeftX;
+      CardEnderecoDyn.Position.Y := CardContatoDyn.Position.Y + CardContatoDyn.Height + LGap;
+
+      if Assigned(LbNome) then LbNome.TextSettings.Font.Size := 16;
+      if Assigned(LbDoc) then LbDoc.TextSettings.Font.Size := 14;
+      if Assigned(LbCidade) then LbCidade.TextSettings.Font.Size := 14;
+      if Assigned(LbSituacaoTitulo) then LbSituacaoTitulo.TextSettings.Font.Size := 15;
+      if Assigned(LbLimite) then LbLimite.TextSettings.Font.Size := 14;
+      if Assigned(LbSaldo) then LbSaldo.TextSettings.Font.Size := 14;
+      if Assigned(LbContatoTituloDyn) then LbContatoTituloDyn.TextSettings.Font.Size := 15;
+      if Assigned(LbTelefoneDyn) then LbTelefoneDyn.TextSettings.Font.Size := 14;
+      if Assigned(LbEmailDyn) then LbEmailDyn.TextSettings.Font.Size := 14;
+      if Assigned(LbEnderecoTituloDyn) then LbEnderecoTituloDyn.TextSettings.Font.Size := 15;
+      if Assigned(LbEndereco1Dyn) then LbEndereco1Dyn.TextSettings.Font.Size := 14;
+      if Assigned(LbEndereco2Dyn) then LbEndereco2Dyn.TextSettings.Font.Size := 14;
+      if Assigned(lbFormaPgto) then lbFormaPgto.TextSettings.Font.Size := 14;
+      if Assigned(lbPrazoPgto) then lbPrazoPgto.TextSettings.Font.Size := 14;
+      if Assigned(Label3) then Label3.TextSettings.Font.Size := 15;
+      if Assigned(Label2) then Label2.TextSettings.Font.Size := 15;
     end
     else
     begin
@@ -649,14 +934,14 @@ begin
     Exit;
 
   LIsLandscape := ClientWidth > ClientHeight;
+  LIsTabletPortrait := (not LIsLandscape) and (ClientWidth >= 600);
   LBottomMargin := 0;
 
   if LIsLandscape then
     TopBar.Height := 72
   else begin
     TopBar.Height := 96;
-    if IsXiaomiDevice then
-      LBottomMargin := 50;
+    LBottomMargin := 50;
   end;
   LbTitulo.Position.Y := (TopBar.Height - LbTitulo.Height) * 0.75;
 
@@ -685,13 +970,13 @@ begin
     if Assigned(LLeftArea) then
     begin
       LLeftArea.Align := TAlignLayout.None;
-      // Layout2 contÃ©m BtnPedido (Gravar) -> direita
+      // Layout2 contém BtnPedido (Gravar) -> direita
       LLeftArea.SetBounds(LBtnW, 0, LFooter.Width - LBtnW, LFooter.Height);
     end;
     if Assigned(LRightArea) then
     begin
       LRightArea.Align := TAlignLayout.None;
-      // Layout3 contÃ©m BtnCancelar -> esquerda
+      // Layout3 contém BtnCancelar -> esquerda
       LRightArea.SetBounds(0, 0, LBtnW, LFooter.Height);
     end;
   end;
@@ -715,7 +1000,7 @@ begin
     FTabHeader.BringToFront;
     LTabTop := TopBar.Height + LTabsHeaderH;
 
-    LBtnW := ClientWidth / 5;
+    LBtnW := ClientWidth / (High(FTabButtons) + 1);
     for I := 0 to High(FTabButtons) do
       if Assigned(FTabButtons[I]) then
       begin
@@ -741,7 +1026,7 @@ begin
   TabMenu.SetBounds(0, LTabTop, ClientWidth, LTabH);
   AtualizarEstadoCabecalhoAbas;
 
-  // Em paisagem, amplia a largura Ãºtil de texto das ListViews para evitar cortes.
+  // Em paisagem, amplia a largura útil de texto das ListViews para evitar cortes.
   if LIsLandscape then
   begin
     AjustarLarguraListView(LvUltimasCompras, 78);
@@ -753,12 +1038,117 @@ begin
     AjustarLarguraListView(LvDigitados, 105);
   end;
 
+  LProdutosScroll := FindComponent('ScrollBox1') as TControl;
+  LProdutosRoot := FindComponent('LayoutProdutosRoot') as TControl;
+  LPromocaoRoot := FindComponent('LayoutPromocao') as TControl;
+  LPromocaoList := FindComponent('LayoutPromocaoList') as TControl;
+  if LIsLandscape or LIsTabletPortrait then
+  begin
+    if LIsLandscape then
+      LListW := Min(ClientWidth - 32, 980)
+    else
+      LListW := Min(ClientWidth - 32, 680);
+    if LListW < 320 then
+      LListW := ClientWidth - 20;
+    LListX := Max(10, (ClientWidth - LListW) / 2);
+
+    if Assigned(LProdutosScroll) then
+    begin
+      LProdutosScroll.Align := TAlignLayout.None;
+      LProdutosScroll.SetBounds(0, 0, ClientWidth, TabMenu.Height);
+    end;
+    if Assigned(LProdutosRoot) then
+    begin
+      LProdutosRoot.Align := TAlignLayout.None;
+      LProdutosRoot.SetBounds(LListX, 0, LListW, TabMenu.Height);
+    end;
+    if Assigned(CardBuscaProd) then
+    begin
+      CardBuscaProd.Align := TAlignLayout.None;
+      CardBuscaProd.SetBounds(0, 8, LListW, CardBuscaProd.Height);
+    end;
+    if Assigned(LayoutProdutosList) and Assigned(CardBuscaProd) then
+    begin
+      LayoutProdutosList.Align := TAlignLayout.None;
+      LayoutProdutosList.SetBounds(0, CardBuscaProd.Position.Y + CardBuscaProd.Height + 6,
+        LListW, Max(120, TabMenu.Height - CardBuscaProd.Position.Y - CardBuscaProd.Height - 16));
+    end;
+    if Assigned(LvProdutos) and Assigned(LayoutProdutosList) then
+    begin
+      LvProdutos.Align := TAlignLayout.None;
+      LvProdutos.SetBounds(0, 0, LayoutProdutosList.Width, LayoutProdutosList.Height);
+    end;
+    if Assigned(LPromocaoRoot) then
+    begin
+      LPromocaoRoot.Align := TAlignLayout.None;
+      LPromocaoRoot.SetBounds(LListX, 8, LListW, Max(120, TabMenu.Height - 16));
+    end;
+    if Assigned(CardBuscaPromocao) then
+    begin
+      CardBuscaPromocao.Align := TAlignLayout.None;
+      CardBuscaPromocao.SetBounds(0, 0, LListW, CardBuscaPromocao.Height);
+    end;
+    if Assigned(LPromocaoList) and Assigned(CardBuscaPromocao) then
+    begin
+      LPromocaoList.Align := TAlignLayout.None;
+      LPromocaoList.SetBounds(0, CardBuscaPromocao.Position.Y + CardBuscaPromocao.Height + 6,
+        LListW, Max(120, LPromocaoRoot.Height - CardBuscaPromocao.Position.Y - CardBuscaPromocao.Height - 8));
+    end;
+    if Assigned(LvPromocao) and Assigned(LPromocaoList) then
+    begin
+      LvPromocao.Align := TAlignLayout.None;
+      LvPromocao.SetBounds(0, 0, LPromocaoList.Width, LPromocaoList.Height);
+    end;
+  end
+  else
+  begin
+    if Assigned(LProdutosScroll) then
+      LProdutosScroll.Align := TAlignLayout.Client;
+    if Assigned(LProdutosRoot) then
+      LProdutosRoot.Align := TAlignLayout.Client;
+    if Assigned(CardBuscaProd) then
+      CardBuscaProd.Align := TAlignLayout.Top;
+    if Assigned(LayoutProdutosList) then
+      LayoutProdutosList.Align := TAlignLayout.Client;
+    if Assigned(LvProdutos) then
+      LvProdutos.Align := TAlignLayout.Client;
+    if Assigned(LPromocaoRoot) then
+      LPromocaoRoot.Align := TAlignLayout.Client;
+    if Assigned(CardBuscaPromocao) then
+      CardBuscaPromocao.Align := TAlignLayout.Top;
+    if Assigned(LPromocaoList) then
+      LPromocaoList.Align := TAlignLayout.Client;
+    if Assigned(LvPromocao) then
+      LvPromocao.Align := TAlignLayout.Client;
+  end;
+
   AjustarProdutosPaisagem;
+
+  if LIsLandscape or LIsTabletPortrait then
+  begin
+    if Assigned(LayoutProdutosList) and Assigned(CardBuscaProd) then
+      LayoutProdutosList.SetBounds(0, CardBuscaProd.Position.Y + CardBuscaProd.Height + 6,
+        LListW, Max(120, TabMenu.Height - CardBuscaProd.Position.Y - CardBuscaProd.Height - 16));
+    if Assigned(LvProdutos) and Assigned(LayoutProdutosList) then
+      LvProdutos.SetBounds(0, 0, LayoutProdutosList.Width, LayoutProdutosList.Height);
+    if Assigned(LPromocaoRoot) then
+      LPromocaoRoot.SetBounds(LListX, 8, LListW, Max(120, TabMenu.Height - 16));
+    if Assigned(CardBuscaPromocao) then
+      CardBuscaPromocao.SetBounds(0, 0, LListW, CardBuscaPromocao.Height);
+    if Assigned(LPromocaoList) and Assigned(CardBuscaPromocao) then
+      LPromocaoList.SetBounds(0, CardBuscaPromocao.Position.Y + CardBuscaPromocao.Height + 6,
+        LListW, Max(120, LPromocaoRoot.Height - CardBuscaPromocao.Position.Y - CardBuscaPromocao.Height - 8));
+    if Assigned(LvPromocao) and Assigned(LPromocaoList) then
+      LvPromocao.SetBounds(0, 0, LPromocaoList.Width, LPromocaoList.Height);
+    AjustarLarguraListView(LvProdutos, 112);
+    AjustarLarguraListView(LvPromocao, 112);
+  end;
 
   if Assigned(PresentedScrollBox1) then
     PresentedScrollBox1.Padding.Bottom := 8;
 
   AjustarClientePaisagem;
+  AjustarCardContatoEndereco;
 
   if Assigned(LayoutDigitadosAcoes) and Assigned(BtnEditarDigitado) and Assigned(BtnExcluirDigitado) then
   begin
@@ -773,7 +1163,7 @@ begin
     LBtnW := (LayoutDigitadosAcoes.Width - LGap) / 2;
     if LBtnW < 80 then
       LBtnW := 80;
-    // Invertido: Excluir Ã  esquerda, Editar Ã  direita
+    // Invertido: Excluir à esquerda, Editar à direita
     BtnExcluirDigitado.SetBounds(0, 0, LBtnW, LayoutDigitadosAcoes.Height);
     BtnEditarDigitado.SetBounds(LBtnW + LGap, 0, LBtnW, LayoutDigitadosAcoes.Height);
   end;
@@ -784,6 +1174,67 @@ begin
     LFooter.BringToFront;
 end;
 
+procedure TfrmPedido.AjustarCardContatoEndereco;
+var
+  LIsLandscape: Boolean;
+  LIsTabletPortrait: Boolean;
+  LInnerContato: Single;
+  LInnerEndereco: Single;
+  LEndereco1H: Single;
+  LEndereco2H: Single;
+begin
+  if not Assigned(CardContatoDyn) or not Assigned(CardEnderecoDyn) then
+    Exit;
+
+  LIsLandscape := ClientWidth > ClientHeight;
+  LIsTabletPortrait := (not LIsLandscape) and (ClientWidth >= 430);
+
+  LInnerContato := Max(120, CardContatoDyn.Width - 40);
+  LInnerEndereco := Max(120, CardEnderecoDyn.Width - 40);
+
+  if Assigned(LbContatoTituloDyn) then
+    LbContatoTituloDyn.SetBounds(20, 10, LInnerContato, 20);
+  if Assigned(LbTelefoneDyn) then
+    LbTelefoneDyn.SetBounds(20, 36, LInnerContato, 20);
+  if Assigned(LbEmailDyn) then
+  begin
+    LbEmailDyn.TextSettings.WordWrap := False;
+    LbEmailDyn.SetBounds(20, 58, LInnerContato, 20);
+  end;
+
+  if Assigned(LbEnderecoTituloDyn) then
+    LbEnderecoTituloDyn.SetBounds(20, 12, LInnerEndereco, 20);
+
+  if LIsLandscape then
+  begin
+    LEndereco1H := 24;
+    LEndereco2H := 24;
+    CardEnderecoDyn.Height := 96;
+  end
+  else if LIsTabletPortrait then
+  begin
+    LEndereco1H := 34;
+    LEndereco2H := 30;
+    CardEnderecoDyn.Height := 116;
+  end
+  else
+  begin
+    LEndereco1H := 38;
+    LEndereco2H := 34;
+    CardEnderecoDyn.Height := 124;
+  end;
+
+  if Assigned(LbEndereco1Dyn) then
+  begin
+    LbEndereco1Dyn.TextSettings.WordWrap := True;
+    LbEndereco1Dyn.SetBounds(20, 40, LInnerEndereco, LEndereco1H);
+  end;
+  if Assigned(LbEndereco2Dyn) then
+  begin
+    LbEndereco2Dyn.TextSettings.WordWrap := True;
+    LbEndereco2Dyn.SetBounds(20, 40 + LEndereco1H + 4, LInnerEndereco, LEndereco2H);
+  end;
+end;
 procedure TfrmPedido.EnsureCardContatoEndereco;
 begin
   if not Assigned(PresentedScrollBox1) then
@@ -860,13 +1311,14 @@ begin
     LbEnderecoTituloDyn.StyledSettings := [];
     LbEnderecoTituloDyn.TextSettings.Font.Size := 14;
     LbEnderecoTituloDyn.TextSettings.FontColor := TAlphaColor($FF1D2939);
-    LbEnderecoTituloDyn.Text := 'EndereÃ§o';
+    LbEnderecoTituloDyn.Text := 'Endereço';
 
     LbEndereco1Dyn := TLabel.Create(Self);
     LbEndereco1Dyn.Parent := CardEnderecoDyn;
     LbEndereco1Dyn.Align := TAlignLayout.None;
     LbEndereco1Dyn.SetBounds(20, 36, CardEnderecoDyn.Width - 40, 16);
     LbEndereco1Dyn.StyledSettings := [];
+    LbEndereco1Dyn.TextSettings.WordWrap := True;
     LbEndereco1Dyn.TextSettings.Font.Size := 13;
     LbEndereco1Dyn.TextSettings.FontColor := TAlphaColor($FF6B7280);
 
@@ -875,30 +1327,18 @@ begin
     LbEndereco2Dyn.Align := TAlignLayout.None;
     LbEndereco2Dyn.SetBounds(20, 56, CardEnderecoDyn.Width - 40, 16);
     LbEndereco2Dyn.StyledSettings := [];
+    LbEndereco2Dyn.TextSettings.WordWrap := True;
     LbEndereco2Dyn.TextSettings.Font.Size := 13;
     LbEndereco2Dyn.TextSettings.FontColor := TAlphaColor($FF6B7280);
   end;
 
-  // MantÃ©m ordem igual ao unClienteDetalhe: Perfil -> Contato -> EndereÃ§o.
+  // Mantém ordem igual ao unClienteDetalhe: Perfil -> Contato -> Endereço.
   if Assigned(CardPerfil) then
   begin
     CardContatoDyn.Index := CardPerfil.Index + 1;
     CardEnderecoDyn.Index := CardContatoDyn.Index + 1;
   end;
 
-  // Ajusta largura Ãºtil dos labels conforme largura final dos cards.
-  if Assigned(LbContatoTituloDyn) then
-    LbContatoTituloDyn.Width := CardContatoDyn.Width - 40;
-  if Assigned(LbTelefoneDyn) then
-    LbTelefoneDyn.Width := CardContatoDyn.Width - 40;
-  if Assigned(LbEmailDyn) then
-    LbEmailDyn.Width := CardContatoDyn.Width - 40;
-  if Assigned(LbEnderecoTituloDyn) then
-    LbEnderecoTituloDyn.Width := CardEnderecoDyn.Width - 40;
-  if Assigned(LbEndereco1Dyn) then
-    LbEndereco1Dyn.Width := CardEnderecoDyn.Width - 40;
-  if Assigned(LbEndereco2Dyn) then
-    LbEndereco2Dyn.Width := CardEnderecoDyn.Width - 40;
   CardContatoDyn.Visible := True;
   CardEnderecoDyn.Visible := True;
 
@@ -930,6 +1370,8 @@ begin
     else
       LbEndereco2Dyn.Text := '--';
   end;
+
+  AjustarCardContatoEndereco;
 end;
 
 procedure TfrmPedido.SyncCardsTotalPgtoTexto;
@@ -1009,6 +1451,7 @@ begin
     Q.ExecSQL;
 
     outboundPedidoId := 0;
+    dmApp.ClearAppState('pedido');
   finally
     Q.Free;
   end;
@@ -1126,6 +1569,166 @@ begin
   Result := 'R$ ' + FormatarNumero(AValue, 2);
 end;
 
+function TfrmPedido.ObterCodRepresentanteLocal: Integer;
+var
+  LQuery: TFDQuery;
+begin
+  Result := 0;
+  LQuery := TFDQuery.Create(nil);
+  try
+    LQuery.Connection := dmApp.FDConnection;
+
+    LQuery.SQL.Text := 'select coalesce(value, '''') as value from app_config where key = :p0';
+    LQuery.ParamByName('p0').AsString := 'cod_representante';
+    LQuery.Open;
+    if not LQuery.Eof then
+      Result := StrToIntDef(Trim(LQuery.FieldByName('value').AsString), 0);
+    LQuery.Close;
+
+    if Result <= 0 then
+    begin
+      LQuery.SQL.Text := 'select id from representante where id is not null order by id limit 1';
+      LQuery.Open;
+      if not LQuery.Eof then
+        Result := LQuery.FieldByName('id').AsInteger;
+    end;
+  finally
+    LQuery.Free;
+  end;
+end;
+
+function TfrmPedido.CalcularPercComissaoProduto(const ACodProduto: string; const ADescPct: Double;
+  const ACodRepresentante: Integer; const AFuncionario: string): Double;
+var
+  LQuery: TFDQuery;
+  LInicial: Double;
+  LEscalaComissao: Double;
+  LEscalaDesconto: Double;
+  LInterno: Boolean;
+  LPercFixo: Double;
+begin
+  Result := 0;
+  if Trim(ACodProduto) = '' then
+    Exit;
+
+  LInterno := SameText(Trim(AFuncionario), '1');
+  LQuery := TFDQuery.Create(nil);
+  try
+    LQuery.Connection := dmApp.FDConnection;
+    LQuery.SQL.Text :=
+      'select perc_comissao_func, perc_comissao_terc ' +
+      'from escala_comissao ' +
+      'where desconto <= :pdesc ' +
+      'order by desconto desc ' +
+      'limit 1';
+    LQuery.ParamByName('pdesc').AsFloat := ADescPct;
+    try
+      LQuery.Open;
+    except
+      LQuery.Close;
+    end;
+    if (LQuery.Active) and (not LQuery.Eof) then
+    begin
+      if LInterno then
+        Result := SafeFieldAsFloat(LQuery, 'perc_comissao_func')
+      else
+        Result := SafeFieldAsFloat(LQuery, 'perc_comissao_terc');
+      if Result > 0 then
+        Exit;
+    end;
+    LQuery.Close;
+
+    LQuery.SQL.Text :=
+      'select ' +
+      '  case when :interno = 1 then coalesce(gc.comissao_interno, 0) ' +
+      '       else coalesce(gc.comissao_outros, 0) end as perc_comissao ' +
+      'from produto p ' +
+      'inner join grade_comissao gc on upper(trim(gc.tipo)) = upper(trim(p.grade_comissao)) ' +
+      'where p.cod_produto = :prod ' +
+      '  and :pdesc between coalesce(gc.inicio, 0) and coalesce(gc.fim, 999999) ' +
+      'order by gc.inicio desc ' +
+      'limit 1';
+    LQuery.ParamByName('interno').AsInteger := Ord(LInterno);
+    LQuery.ParamByName('prod').AsString := ACodProduto;
+    LQuery.ParamByName('pdesc').AsFloat := ADescPct;
+    try
+      LQuery.Open;
+    except
+      LQuery.Close;
+    end;
+    if (LQuery.Active) and (not LQuery.Eof) then
+    begin
+      Result := SafeFieldAsFloat(LQuery, 'perc_comissao');
+      if Result > 0 then
+        Exit;
+    end;
+    LQuery.Close;
+
+    LQuery.SQL.Text :=
+      'select ' +
+      ' coalesce(pr.comissao_inicial_interno, p.comissao_inicial_interno, gr.comissao_inicial_interno, 0) as com_ini_int, ' +
+      ' coalesce(pr.comissao_inicial_outros, p.comissao_inicial_outros, gr.comissao_inicial_outros, 0) as com_ini_out, ' +
+      ' coalesce(pr.escala_comissao_interno, p.escala_comissao_interno, gr.escala_comissao_interno, 0) as esc_com_int, ' +
+      ' coalesce(pr.escala_comissao_outros, p.escala_comissao_outros, gr.escala_comissao_outros, 0) as esc_com_out, ' +
+      ' coalesce(pr.escala_desconto, p.escala_desconto, gr.escala_desconto, 0) as esc_desc ' +
+      'from produto p ' +
+      'left join produto_representante pr on pr.cod_produto = p.cod_produto and pr.id_representante = :rep ' +
+      'left join grupo_representante gr on gr.cod_grupo = p.cod_grupo and gr.id_representante = :rep ' +
+      'where p.cod_produto = :prod ' +
+      'limit 1';
+    LQuery.ParamByName('rep').AsInteger := ACodRepresentante;
+    LQuery.ParamByName('prod').AsString := ACodProduto;
+    try
+      LQuery.Open;
+    except
+      Exit;
+    end;
+    if LQuery.Eof then
+      Exit;
+
+    if LInterno then
+    begin
+      LInicial := SafeFieldAsFloat(LQuery, 'com_ini_int');
+      LEscalaComissao := SafeFieldAsFloat(LQuery, 'esc_com_int');
+    end
+    else
+    begin
+      LInicial := SafeFieldAsFloat(LQuery, 'com_ini_out');
+      LEscalaComissao := SafeFieldAsFloat(LQuery, 'esc_com_out');
+    end;
+    LEscalaDesconto := SafeFieldAsFloat(LQuery, 'esc_desc');
+
+    Result := LInicial;
+    if (LEscalaDesconto > 0) and (LEscalaComissao <> 0) and (ADescPct > 0) then
+      Result := Result - ((ADescPct / LEscalaDesconto) * LEscalaComissao);
+
+    if Result < 0 then
+      Result := 0;
+
+    if Result <= 0 then
+    begin
+      LQuery.Close;
+      LQuery.SQL.Text :=
+        'select coalesce(perc_comissao_fixa, 0) as perc_comissao_fixa ' +
+        'from representante where id = :rep limit 1';
+      LQuery.ParamByName('rep').AsInteger := ACodRepresentante;
+      try
+        LQuery.Open;
+      except
+        Exit;
+      end;
+      if not LQuery.Eof then
+      begin
+        LPercFixo := SafeFieldAsFloat(LQuery, 'perc_comissao_fixa');
+        if LPercFixo > 0 then
+          Result := LPercFixo;
+      end;
+    end;
+  finally
+    LQuery.Free;
+  end;
+end;
+
 procedure TfrmPedido.CarregarSituacaoDoSqlite(const ACodigo: string);
 var
   Q: TFDQuery;
@@ -1205,6 +1808,149 @@ begin
   end;
 end;
 
+procedure TfrmPedido.PararCargaImagensProdutos;
+begin
+  if Assigned(FProdutoImagemTimer) then
+    FProdutoImagemTimer.Enabled := False;
+  FProdutoImagemCursor := 0;
+end;
+
+procedure TfrmPedido.IniciarCargaImagensProdutos(const ACampoImagem: string);
+begin
+  PararCargaImagensProdutos;
+
+  if (Trim(ACampoImagem) = '') or (not Assigned(LvProdutos)) or (LvProdutos.Items.Count = 0) then
+    Exit;
+
+  FProdutoImagemCampoImagem := ACampoImagem;
+  FProdutoImagemCursor := 0;
+
+  if not Assigned(FProdutoImagemCache) then
+    FProdutoImagemCache := TObjectDictionary<string, TBitmap>.Create([doOwnsValues]);
+
+  if not Assigned(FProdutoImagemTimer) then
+  begin
+    FProdutoImagemTimer := TTimer.Create(Self);
+    FProdutoImagemTimer.Interval := 80;
+    FProdutoImagemTimer.OnTimer := ProdutoImagemTimer;
+  end;
+
+  FProdutoImagemTimer.Enabled := True;
+end;
+
+function TfrmPedido.CarregarImagemSubcategoria(const ASubId, ACampoImagem: string): TBitmap;
+var
+  LQuery: TFDQuery;
+  LField: TField;
+  LStream: TMemoryStream;
+  LBmp: TBitmap;
+begin
+  Result := nil;
+  if (Trim(ASubId) = '') or (Trim(ACampoImagem) = '') then
+    Exit;
+
+  if Assigned(FProdutoImagemCache) and FProdutoImagemCache.TryGetValue(ASubId, Result) then
+    Exit;
+
+  LQuery := TFDQuery.Create(nil);
+  try
+    LQuery.Connection := dmApp.FDConnection;
+    LQuery.SQL.Text := Format('select %s as imagem_bd from subcategoria where id = :p0 limit 1', [ACampoImagem]);
+    LQuery.ParamByName('p0').AsString := ASubId;
+    LQuery.Open;
+
+    if LQuery.Eof then
+      Exit;
+
+    LField := LQuery.FindField('imagem_bd');
+    if (LField = nil) or LField.IsNull or not (LField is TBlobField) then
+      Exit;
+
+    LStream := TMemoryStream.Create;
+    LBmp := TBitmap.Create;
+    try
+      TBlobField(LField).SaveToStream(LStream);
+      if LStream.Size <= 0 then
+      begin
+        LBmp.Free;
+        Exit;
+      end;
+      LStream.Position := 0;
+      try
+        LBmp.LoadFromStream(LStream);
+      except
+        LBmp.Free;
+        Exit;
+      end;
+
+      if not Assigned(FProdutoImagemCache) then
+        FProdutoImagemCache := TObjectDictionary<string, TBitmap>.Create([doOwnsValues]);
+      FProdutoImagemCache.Add(ASubId, LBmp);
+      Result := LBmp;
+    finally
+      LStream.Free;
+    end;
+  finally
+    LQuery.Free;
+  end;
+end;
+
+procedure TfrmPedido.AtribuirImagemProduto(AItem: TListViewItem; ABmp: TBitmap);
+var
+  LImgObj: TListItemImage;
+begin
+  if (AItem = nil) or (ABmp = nil) then
+    Exit;
+
+  LImgObj := AItem.Objects.FindObjectT<TListItemImage>('image');
+  if LImgObj <> nil then
+  begin
+    LImgObj.Bitmap.Assign(ABmp);
+    LImgObj.OwnsBitmap := True;
+  end
+  else
+    AItem.Bitmap.Assign(ABmp);
+end;
+
+procedure TfrmPedido.ProdutoImagemTimer(Sender: TObject);
+var
+  LItem: TListViewItem;
+  LCodProduto: string;
+  LSubId: string;
+  LBmp: TBitmap;
+  LTentativas: Integer;
+begin
+  if (not Assigned(LvProdutos)) or (not Assigned(FProdutoImagemSubPorProduto)) then
+  begin
+    PararCargaImagensProdutos;
+    Exit;
+  end;
+
+  LTentativas := 0;
+  while (FProdutoImagemCursor < LvProdutos.Items.Count) and (LTentativas < 4) do
+  begin
+    LItem := LvProdutos.Items[FProdutoImagemCursor];
+    Inc(FProdutoImagemCursor);
+    Inc(LTentativas);
+
+    if LItem = nil then
+      Continue;
+
+    LCodProduto := Trim(LItem.TagString);
+    if (LCodProduto = '') or (not FProdutoImagemSubPorProduto.TryGetValue(LCodProduto, LSubId)) then
+      Continue;
+
+    LBmp := CarregarImagemSubcategoria(LSubId, FProdutoImagemCampoImagem);
+    if LBmp <> nil then
+    begin
+      AtribuirImagemProduto(LItem, LBmp);
+      Break;
+    end;
+  end;
+
+  if FProdutoImagemCursor >= LvProdutos.Items.Count then
+    PararCargaImagensProdutos;
+end;
 procedure TfrmPedido.ListarProdutos;
 var
   LQuery: TFDQuery;
@@ -1235,6 +1981,7 @@ var
   LStream: TMemoryStream;
   LBmp: TBitmap;
   LImgObj: TListItemImage;
+  LSubId: string;
 begin
   if LvProdutos = nil then
     Exit;
@@ -1253,6 +2000,7 @@ begin
 
   LColsSub := GetTabelaCols('subcategoria');
   LCampoImagem := FindCampo(LColsSub, ['imagem_bd']);
+  // O BLOB da imagem e carregado depois, em pequenos lotes, para evitar ANR no Android.
 
   if LCampoCodigo = '' then
     LCampoCodigo := LColsProd[0];
@@ -1260,7 +2008,7 @@ begin
     LCampoNome := LCampoCodigo;
 
   LTexto := Trim(EdBuscarProd.Text);
-  LBuscarPorCodigo := Assigned(CbModoBuscaProd) and SameText(CbModoBuscaProd.Selected.Text, 'CÃ³digo');
+  LBuscarPorCodigo := Assigned(CbModoBuscaProd) and SameText(CbModoBuscaProd.Selected.Text, 'Código');
   LBuscarPorAmbos := Assigned(CbModoBuscaProd) and SameText(CbModoBuscaProd.Selected.Text, 'Ambos');
 
   LSql := Format('select p.%s as cod_produto, p.%s as nom_produto', [LCampoCodigo, LCampoNome]);
@@ -1272,26 +2020,23 @@ begin
     LSql := LSql + Format(', p.%s as unidade', [LCampoUn]);
   if LCampoEstoque <> '' then
     LSql := LSql + Format(', p.%s as estoque', [LCampoEstoque]);
+  LSql := LSql + ', null as imagem_bd';
   if (LCampoSubFk <> '') and (LCampoImagem <> '') then
-    LSql := LSql + Format(', sc.%s as imagem_bd', [LCampoImagem])
-  else
-    LSql := LSql + ', null as imagem_bd';
+    LSql := LSql + Format(', p.%s as imagem_sub_id', [LCampoSubFk]);
 
   LSql := LSql + ' from produto p';
-  if (LCampoSubFk <> '') and (LCampoImagem <> '') then
-    LSql := LSql + Format(' left outer join subcategoria sc on sc.id = p.%s', [LCampoSubFk]);
 
   if LBuscarPorCodigo then
     LSql := LSql + Format(' where p.%s = :p0', [LCampoCodigo])
   else if LBuscarPorAmbos then
     LSql := LSql + Format(
-      ' where (upper(coalesce(p.%s, '''')) like :p0 or cast(p.%s as text) like :p1)',
+      ' where (upper(coalesce(p.%s, '''')) like :p0 or cast(p.%s as text) = :p1)',
       [LCampoNome, LCampoCodigo]
     )
   else
     LSql := LSql + Format(' where upper(coalesce(p.%s, '''')) like :p0', [LCampoNome]);
 
-  LSql := LSql + ' order by nom_produto limit 200';
+  LSql := LSql + ' order by nom_produto limit 100';
 
   LQuery := TFDQuery.Create(nil);
   try
@@ -1302,21 +2047,37 @@ begin
     else if LBuscarPorAmbos then
     begin
       LQuery.ParamByName('p0').AsString := '%' + UpperCase(LTexto) + '%';
-      LQuery.ParamByName('p1').AsString := '%' + LTexto + '%';
+      LQuery.ParamByName('p1').AsString := LTexto;
     end
     else
       LQuery.ParamByName('p0').AsString := '%' + UpperCase(LTexto) + '%';
     LQuery.Open;
 
-    LvProdutos.Items.Clear;
-    while not LQuery.Eof do
-    begin
+    PararCargaImagensProdutos;
+    if not Assigned(FProdutoImagemSubPorProduto) then
+      FProdutoImagemSubPorProduto := TDictionary<string, string>.Create
+    else
+      FProdutoImagemSubPorProduto.Clear;
+
+    LvProdutos.Items.BeginUpdate;
+    try
+      LvProdutos.Items.Clear;
+      while not LQuery.Eof do
+      begin
       LCodigo := LQuery.FieldByName('cod_produto').AsString;
       LNome := LQuery.FieldByName('nom_produto').AsString;
       LUn := SafeFieldAsString(LQuery, 'unidade');
       LEstoque := SafeFieldAsString(LQuery, 'estoque');
       LPreco := SafeFieldAsFloat(LQuery, 'preco_venda');
       LDescMax := SafeFieldAsFloat(LQuery, 'desconto_maximo');
+      LSubId := SafeFieldAsString(LQuery, 'imagem_sub_id');
+      if (LCodigo <> '') and (LSubId <> '') and Assigned(FProdutoImagemSubPorProduto) then
+      begin
+        if FProdutoImagemSubPorProduto.ContainsKey(LCodigo) then
+          FProdutoImagemSubPorProduto[LCodigo] := LSubId
+        else
+          FProdutoImagemSubPorProduto.Add(LCodigo, LSubId);
+      end;
       LMin := LPreco - (LPreco * (LDescMax / 100));
 
       LItem := LvProdutos.Items.Add;
@@ -1358,7 +2119,147 @@ begin
             else
               LItem.Bitmap.Assign(LBmp);
           except
-            // ignore imagem invÃ¡lida
+            // ignore imagem inválida
+          end;
+        finally
+          LBmp.Free;
+          LStream.Free;
+        end;
+      end;
+
+        LQuery.Next;
+      end;
+    finally
+      LvProdutos.Items.EndUpdate;
+    end;
+
+    if (LCampoSubFk <> '') and (LCampoImagem <> '') then
+      IniciarCargaImagensProdutos(LCampoImagem);
+  finally
+    LQuery.Free;
+  end;
+end;
+
+procedure TfrmPedido.ListarPromocoes;
+var
+  LQuery: TFDQuery;
+  LItem: TListViewItem;
+  LImgField: TField;
+  LStream: TMemoryStream;
+  LBmp: TBitmap;
+  LImgObj: TListItemImage;
+  LCodigo: string;
+  LNome: string;
+  LUn: string;
+  LEstoque: string;
+  LPrecoVenda: Double;
+  LPrecoPromocao: Double;
+  LPrecoBasePromo: Double;
+  LTexto: string;
+  LBuscarPorCodigo: Boolean;
+  LBuscarPorAmbos: Boolean;
+begin
+  if LvPromocao = nil then
+    Exit;
+
+  LQuery := TFDQuery.Create(nil);
+  try
+    LQuery.Connection := dmApp.FDConnection;
+
+    if Assigned(EdBuscarPromocao) then
+      LTexto := Trim(EdBuscarPromocao.Text)
+    else
+      LTexto := '';
+    LBuscarPorCodigo := Assigned(CbModoBuscaPromocao) and SameText(CbModoBuscaPromocao.Selected.Text, 'Código');
+    LBuscarPorAmbos := Assigned(CbModoBuscaPromocao) and SameText(CbModoBuscaPromocao.Selected.Text, 'Ambos');
+
+    LQuery.SQL.Text :=
+      'select p.cod_produto, p.nom_produto, p.unidade, p.preco_venda, ' +
+      '       p.preco_promocao, p.qtd_estoque, s.imagem_bd ' +
+      'from produto p ' +
+      'left join subcategoria s on s.id = p.subcategoria ' +
+      'where coalesce(p.promocao, ''N'') = ''S'' ' +
+      '  and coalesce(p.preco_promocao, 0) > 0 ';
+
+    if LTexto <> '' then
+    begin
+      if LBuscarPorCodigo then
+        LQuery.SQL.Text := LQuery.SQL.Text + ' and p.cod_produto = :p0 '
+      else if LBuscarPorAmbos then
+        LQuery.SQL.Text := LQuery.SQL.Text +
+          ' and (upper(coalesce(p.nom_produto, '''')) like :p0 or cast(p.cod_produto as text) = :p1) '
+      else
+        LQuery.SQL.Text := LQuery.SQL.Text + ' and upper(coalesce(p.nom_produto, '''')) like :p0 ';
+    end;
+
+    LQuery.SQL.Text := LQuery.SQL.Text + 'order by p.nom_produto limit 100';
+
+    if LTexto <> '' then
+    begin
+      if LBuscarPorCodigo then
+        LQuery.ParamByName('p0').AsString := LTexto
+      else if LBuscarPorAmbos then
+      begin
+        LQuery.ParamByName('p0').AsString := '%' + UpperCase(LTexto) + '%';
+        LQuery.ParamByName('p1').AsString := LTexto;
+      end
+      else
+        LQuery.ParamByName('p0').AsString := '%' + UpperCase(LTexto) + '%';
+    end;
+
+    LQuery.Open;
+
+    LvPromocao.Items.Clear;
+    while not LQuery.Eof do
+    begin
+      LCodigo := LQuery.FieldByName('cod_produto').AsString;
+      LNome := LQuery.FieldByName('nom_produto').AsString;
+      LUn := SafeFieldAsString(LQuery, 'unidade');
+      LEstoque := SafeFieldAsString(LQuery, 'qtd_estoque');
+      LPrecoVenda := SafeFieldAsFloat(LQuery, 'preco_venda');
+      LPrecoPromocao := SafeFieldAsFloat(LQuery, 'preco_promocao');
+      if LPrecoPromocao > 0 then
+        LPrecoBasePromo := LPrecoPromocao / 0.65
+      else
+        LPrecoBasePromo := LPrecoVenda;
+
+      if LUn = '' then
+        LUn := '--';
+      if LEstoque = '' then
+        LEstoque := '--';
+
+      LItem := LvPromocao.Items.Add;
+      LItem.TagString := LCodigo;
+      if LCodigo <> '' then
+        LItem.Text := LCodigo + ' - ' + LNome
+      else
+        LItem.Text := LNome;
+      LItem.Detail := Format('UN=%s  Promo=%s  Base=%s  DM=35%%  E=%s', [
+        LUn, FormatarMoeda(LPrecoPromocao), FormatarMoeda(LPrecoBasePromo), LEstoque
+      ]);
+
+      LImgField := LQuery.FindField('imagem_bd');
+      if (LImgField <> nil) and (not LImgField.IsNull) then
+      begin
+        LStream := TMemoryStream.Create;
+        LBmp := TBitmap.Create;
+        try
+          if LImgField is TBlobField then
+            TBlobField(LImgField).SaveToStream(LStream)
+          else
+            LStream.Size := 0;
+          LStream.Position := 0;
+          try
+            LBmp.LoadFromStream(LStream);
+            LImgObj := LItem.Objects.FindObjectT<TListItemImage>('image');
+            if LImgObj <> nil then
+            begin
+              LImgObj.Bitmap.Assign(LBmp);
+              LImgObj.OwnsBitmap := True;
+            end
+            else
+              LItem.Bitmap.Assign(LBmp);
+          except
           end;
         finally
           LBmp.Free;
@@ -1456,11 +2357,22 @@ var
   LDesc: Double;
   LTotal: Double;
   LData: string;
+  LTextoFiltro: string;
+  LBuscaCodigo: Boolean;
+  LBuscaAmbos: Boolean;
+  LPassaFiltro: Boolean;
 begin
   if not Assigned(LvDigitados) then
     Exit;
 
   LvDigitados.Items.Clear;
+  if Assigned(EdBuscarDigitados) then
+    LTextoFiltro := Trim(EdBuscarDigitados.Text)
+  else
+    LTextoFiltro := '';
+  LBuscaCodigo := Assigned(CbModoBuscaDigitados) and SameText(CbModoBuscaDigitados.Selected.Text, 'Código');
+  LBuscaAmbos := Assigned(CbModoBuscaDigitados) and SameText(CbModoBuscaDigitados.Selected.Text, 'Ambos');
+
   if outboundPedidoId <= 0 then
     Exit;
 
@@ -1524,6 +2436,23 @@ begin
         LJson.Free;
       end;
 
+      if LTextoFiltro <> '' then
+      begin
+        if LBuscaCodigo then
+          LPassaFiltro := Pos(UpperCase(LTextoFiltro), UpperCase(LCod)) > 0
+        else if LBuscaAmbos then
+          LPassaFiltro := (Pos(UpperCase(LTextoFiltro), UpperCase(LNome)) > 0) or
+            (Pos(UpperCase(LTextoFiltro), UpperCase(LCod)) > 0)
+        else
+          LPassaFiltro := Pos(UpperCase(LTextoFiltro), UpperCase(LNome)) > 0;
+
+        if not LPassaFiltro then
+        begin
+          LQuery.Next;
+          Continue;
+        end;
+      end;
+
       LItem := LvDigitados.Items.Add;
       LItem.Tag := LQuery.FieldByName('item_ord').AsInteger;
       if LCod <> '' then
@@ -1531,7 +2460,7 @@ begin
       else
         LItem.Text := LNome;
       LItem.TagString := LQuery.FieldByName('vendas2_json').AsString;
-      LItem.Detail := Format('UN=%s  Qtd=%s  PreÃ§o=%s  Desc=%s%%%sTotal=%s  Data=%s',
+      LItem.Detail := Format('UN=%s  Qtd=%s  Preço=%s  Desc=%s%%%sTotal=%s  Data=%s',
         [LUn, FormatarNumero(LQtd, 2), FormatarMoeda(LPreco), FormatarNumero(LDesc, 2),
          sLineBreak, FormatarMoeda(LTotal), LData]);
 
@@ -1559,7 +2488,7 @@ begin
               else
                 LItem.Bitmap.Assign(LBmp);
             except
-              // ignora imagem invÃ¡lida
+              // ignora imagem inválida
             end;
           finally
             LBmp.Free;
@@ -1696,6 +2625,88 @@ begin
   end;
 end;
 
+procedure TfrmPedido.RestaurarPedidoItem(const AExtraJson: string);
+var
+  LJson: TJSONValue;
+  LObj: TJSONObject;
+  LValue: TJSONValue;
+  LModo: string;
+  LCodProduto: string;
+  LItemOrd: Integer;
+  LQtd: Double;
+  LPreco: Double;
+  LDesc: Double;
+  LVendas2Json: string;
+  LQuery: TFDQuery;
+
+  function JsonStr(const AName: string): string;
+  var
+    V: TJSONValue;
+  begin
+    Result := '';
+    if not Assigned(LObj) then
+      Exit;
+    V := LObj.GetValue(AName);
+    if Assigned(V) then
+      Result := V.Value;
+  end;
+
+  function JsonFloat(const AName: string; const ADefault: Double): Double;
+  begin
+    Result := StrToFloatDef(StringReplace(JsonStr(AName), '.', ',', [rfReplaceAll]), ADefault);
+  end;
+
+begin
+  if outboundPedidoId <= 0 then
+    Exit;
+  if Trim(AExtraJson) = '' then
+    Exit;
+
+  Show;
+
+  LJson := TJSONObject.ParseJSONValue(AExtraJson);
+  try
+    if not (LJson is TJSONObject) then
+      Exit;
+    LObj := TJSONObject(LJson);
+
+    LModo := JsonStr('modo');
+    LCodProduto := JsonStr('cod_produto');
+    LItemOrd := StrToIntDef(JsonStr('item_ord'), 0);
+    LQtd := JsonFloat('qtd', 1);
+    LPreco := JsonFloat('preco', 0);
+    LDesc := JsonFloat('desc_pct', 0);
+
+    if SameText(LModo, 'edicao') and (LItemOrd > 0) then
+    begin
+      LVendas2Json := '';
+      LQuery := TFDQuery.Create(nil);
+      try
+        LQuery.Connection := dmApp.FDConnection;
+        LQuery.SQL.Text := 'select vendas2_json from outbound_pedido_item where pedido_id = :p0 and item_ord = :p1';
+        LQuery.ParamByName('p0').AsInteger := outboundPedidoId;
+        LQuery.ParamByName('p1').AsInteger := LItemOrd;
+        LQuery.Open;
+        if not LQuery.IsEmpty then
+          LVendas2Json := LQuery.FieldByName('vendas2_json').AsString;
+      finally
+        LQuery.Free;
+      end;
+
+      if LVendas2Json <> '' then
+      begin
+        EditarItemDigitado(LItemOrd, LVendas2Json);
+        Exit;
+      end;
+    end;
+
+    if LCodProduto <> '' then
+      AbrirPedidoItem(LCodProduto, True, LQtd, LPreco, LDesc);
+  finally
+    LJson.Free;
+  end;
+end;
+
 procedure TfrmPedido.ExcluirItemDigitado(const AItemOrd: Integer);
 var
   Q: TFDQuery;
@@ -1768,6 +2779,12 @@ var
   LTotBruto: Double;
   LTotLiquido: Double;
   LTotDescAcresc: Double;
+  LTotComissao: Double;
+  LPercComissao: Double;
+  LPercComissaoMedio: Double;
+  LCodProduto: string;
+  LCodRepresentante: Integer;
+  LFuncionario: string;
 begin
   if not Assigned(LbTotBrutoValor) or not Assigned(LbTotDescValor) or not Assigned(LbTotLiquidoValor) then
     Exit;
@@ -1775,6 +2792,24 @@ begin
   LTotBruto := 0;
   LTotLiquido := 0;
   LTotDescAcresc := 0;
+  LTotComissao := 0;
+  LCodRepresentante := ObterCodRepresentanteLocal;
+  LFuncionario := '0';
+
+  if LCodRepresentante > 0 then
+  begin
+    LQuery := TFDQuery.Create(nil);
+    try
+      LQuery.Connection := dmApp.FDConnection;
+      LQuery.SQL.Text := 'select coalesce(funcionario, ''0'') as funcionario from representante where id = :p0';
+      LQuery.ParamByName('p0').AsInteger := LCodRepresentante;
+      LQuery.Open;
+      if not LQuery.Eof then
+        LFuncionario := Trim(LQuery.FieldByName('funcionario').AsString);
+    finally
+      LQuery.Free;
+    end;
+  end;
 
   if outboundPedidoId > 0 then
   begin
@@ -1790,6 +2825,7 @@ begin
         LPreco := 0;
         LDescPct := 0;
         LTotalItem := 0;
+        LCodProduto := '';
 
         LJson := TJSONObject.ParseJSONValue(LQuery.FieldByName('vendas2_json').AsString);
         try
@@ -1812,6 +2848,10 @@ begin
             LValue := LObj.GetValue('total_item');
             if Assigned(LValue) then
               LTotalItem := StrToFloatDef(StringReplace(LValue.Value, '.', ',', [rfReplaceAll]), 0);
+
+            LValue := LObj.GetValue('cod_produto');
+            if Assigned(LValue) then
+              LCodProduto := Trim(LValue.Value);
           end;
         finally
           LJson.Free;
@@ -1830,8 +2870,10 @@ begin
 
         LTotBruto := LTotBruto + LItemBruto;
         LTotLiquido := LTotLiquido + LTotalItem;
-        // ConvenÃ§Ã£o: desconto negativo, acrÃ©scimo positivo
+        // Convenção: desconto negativo, acréscimo positivo
         LTotDescAcresc := LTotDescAcresc + (LTotalItem - LItemBruto);
+        LPercComissao := CalcularPercComissaoProduto(LCodProduto, LDescPct, LCodRepresentante, LFuncionario);
+        LTotComissao := LTotComissao + (LTotalItem * (LPercComissao / 100));
 
         LQuery.Next;
       end;
@@ -1842,6 +2884,14 @@ begin
 
   LbTotBrutoValor.Text := FormatarMoeda(LTotBruto);
   LbTotDescValor.Text := FormatarMoeda(LTotDescAcresc);
+  if Assigned(LbTotCVValor) then
+  begin
+    if LTotLiquido > 0 then
+      LPercComissaoMedio := (LTotComissao / LTotLiquido) * 100
+    else
+      LPercComissaoMedio := 0;
+    LbTotCVValor.Text := FormatarNumero(LPercComissaoMedio, 2) + '% / ' + FormatarMoeda(LTotComissao);
+  end;
   LbTotLiquidoValor.Text := FormatarMoeda(LTotLiquido);
   if Assigned(LbRodTotValor) then
     LbRodTotValor.Text := LbTotLiquidoValor.Text;
@@ -1866,6 +2916,9 @@ var
   LQtd: Double;
   LPreco: Double;
   LDetail: string;
+  LTextoFiltro: string;
+  LBuscaCodigo: Boolean;
+  LBuscaAmbos: Boolean;
 begin
   if (LvUltimasCompras = nil) or (codCliente <= 0) then
     Exit;
@@ -1878,14 +2931,44 @@ begin
     'inner join produto p on p.cod_produto = v2.cod_produto ' +
     'left outer join subcategoria s on s.id = p.subcategoria ' +
     'inner join vendas1 v1 on v2.numdoc = v1.numdoc ' +
-    'where v1.cod_cliente = :p0 ' +
-    'order by v1.dtadoc desc';
+    'where v1.cod_cliente = :p0 ';
+
+  if Assigned(EdBuscarUltimas) then
+    LTextoFiltro := Trim(EdBuscarUltimas.Text)
+  else
+    LTextoFiltro := '';
+  LBuscaCodigo := Assigned(CbModoBuscaUltimas) and SameText(CbModoBuscaUltimas.Selected.Text, 'Código');
+  LBuscaAmbos := Assigned(CbModoBuscaUltimas) and SameText(CbModoBuscaUltimas.Selected.Text, 'Ambos');
+
+  if LTextoFiltro <> '' then
+  begin
+    if LBuscaCodigo then
+      LSql := LSql + ' and cast(p.cod_produto as text) = :p1 '
+    else if LBuscaAmbos then
+      LSql := LSql + ' and (upper(coalesce(p.nom_produto, '''')) like :p1 or cast(p.cod_produto as text) = :p2) '
+    else
+      LSql := LSql + ' and upper(coalesce(p.nom_produto, '''')) like :p1 ';
+  end;
+
+  LSql := LSql + 'order by v1.dtadoc desc';
 
   LQuery := TFDQuery.Create(nil);
   try
     LQuery.Connection := dmApp.FDConnection;
     LQuery.SQL.Text := LSql;
     LQuery.ParamByName('p0').AsInteger := codCliente;
+    if LTextoFiltro <> '' then
+    begin
+      if LBuscaCodigo then
+        LQuery.ParamByName('p1').AsString := '%' + LTextoFiltro + '%'
+      else if LBuscaAmbos then
+      begin
+        LQuery.ParamByName('p1').AsString := '%' + UpperCase(LTextoFiltro) + '%';
+        LQuery.ParamByName('p2').AsString := LTextoFiltro;
+      end
+      else
+        LQuery.ParamByName('p1').AsString := '%' + UpperCase(LTextoFiltro) + '%';
+    end;
     LQuery.Open;
 
     LvUltimasCompras.Items.Clear;
@@ -1910,7 +2993,7 @@ begin
       if LEstoque = '' then
         LEstoque := '--';
 
-      LDetail := Format('PC=%s  Min=%s  E=%s%sData %s  Qtde %s  PreÃ§o %s',
+      LDetail := Format('PC=%s  Min=%s  E=%s%sData %s  Qtde %s  Preço %s',
         [FormatarMoeda(LPrecoVenda), FormatarMoeda(LMin), LEstoque, sLineBreak,
          FormatDateTime('dd/mm/yy', LData), FormatarNumero(LQtd, 2), FormatarMoeda(LPreco)]);
       LItem.Detail := LDetail;
@@ -1973,6 +3056,7 @@ begin
       LVenda1.AddPair('observacoes', '');
 
     outboundPedidoId := dmApp.CreateOutboundPedidoDraft(LVenda1.ToJSON, '');
+    dmApp.SetAppState('pedido', outboundPedidoId, '');
     dmApp.AddRequestLog('DB', 'outbound_pedido_open', LVenda1.ToJSON, 'id=' + outboundPedidoId.ToString, 0);
   finally
     LVenda1.Free;
@@ -2003,6 +3087,7 @@ begin
       LVenda1.AddPair('observacoes', '');
 
     dmApp.UpdateOutboundPedidoDraft(outboundPedidoId, LVenda1.ToJSON, '');
+    dmApp.SetAppState('pedido', outboundPedidoId, '');
   finally
     LVenda1.Free;
   end;
@@ -2039,27 +3124,82 @@ begin
   begin
     CbModoBuscaProd.Items.Clear;
     CbModoBuscaProd.Items.Add('Nome');
-    CbModoBuscaProd.Items.Add('CÃ³digo');
+    CbModoBuscaProd.Items.Add('Código');
     CbModoBuscaProd.Items.Add('Ambos');
-    CbModoBuscaProd.ItemIndex := 2;
+    CbModoBuscaProd.ItemIndex := 1;
     CbModoBuscaProd.OnChange := CbModoBuscaProdChange;
   end;
   CbModoBuscaProdChange(CbModoBuscaProd);
 
+  if Assigned(CbModoBuscaPromocao) then
+  begin
+    CbModoBuscaPromocao.Items.Clear;
+    CbModoBuscaPromocao.Items.Add('Nome');
+    CbModoBuscaPromocao.Items.Add('Código');
+    CbModoBuscaPromocao.Items.Add('Ambos');
+    CbModoBuscaPromocao.ItemIndex := 1;
+    CbModoBuscaPromocao.OnChange := CbModoBuscaPromocaoChange;
+  end;
+  CbModoBuscaPromocaoChange(CbModoBuscaPromocao);
+  if Assigned(BtnBuscarPromocao) then
+  begin
+    BtnBuscarPromocao.OnClick := BtnBuscarPromocaoClick;
+    BtnBuscarPromocao.OnTap := BtnBuscarPromocaoTap;
+    if Assigned(BtnBuscarProd) then
+      BtnBuscarPromocao.MultiResBitmap.Assign(BtnBuscarProd.MultiResBitmap);
+  end;
+  if Assigned(CbModoBuscaUltimas) then
+  begin
+    CbModoBuscaUltimas.Items.Clear;
+    CbModoBuscaUltimas.Items.Add('Nome');
+    CbModoBuscaUltimas.Items.Add('Código');
+    CbModoBuscaUltimas.Items.Add('Ambos');
+    CbModoBuscaUltimas.ItemIndex := 1;
+    CbModoBuscaUltimas.OnChange := CbModoBuscaUltimasChange;
+  end;
+  CbModoBuscaUltimasChange(CbModoBuscaUltimas);
+  if Assigned(BtnBuscarUltimas) then
+  begin
+    BtnBuscarUltimas.OnClick := BtnBuscarUltimasClick;
+    BtnBuscarUltimas.OnTap := BtnBuscarUltimasTap;
+    if Assigned(BtnBuscarProd) then
+      BtnBuscarUltimas.MultiResBitmap.Assign(BtnBuscarProd.MultiResBitmap);
+  end;
+
+  if Assigned(CbModoBuscaDigitados) then
+  begin
+    CbModoBuscaDigitados.Items.Clear;
+    CbModoBuscaDigitados.Items.Add('Nome');
+    CbModoBuscaDigitados.Items.Add('Código');
+    CbModoBuscaDigitados.Items.Add('Ambos');
+    CbModoBuscaDigitados.ItemIndex := 1;
+    CbModoBuscaDigitados.OnChange := CbModoBuscaDigitadosChange;
+  end;
+  CbModoBuscaDigitadosChange(CbModoBuscaDigitados);
+  if Assigned(BtnBuscarDigitados) then
+  begin
+    BtnBuscarDigitados.OnClick := BtnBuscarDigitadosClick;
+    BtnBuscarDigitados.OnTap := BtnBuscarDigitadosTap;
+    if Assigned(BtnBuscarProd) then
+      BtnBuscarDigitados.MultiResBitmap.Assign(BtnBuscarProd.MultiResBitmap);
+  end;
   if Assigned(CbOrcamento) then
   begin
     if CbOrcamento.Items.Count = 0 then
     begin
       CbOrcamento.Items.Add('SIM');
-      CbOrcamento.Items.Add('N?O');
+      CbOrcamento.Items.Add('NÃO');
     end;
     if CbOrcamento.ItemIndex < 0 then
       CbOrcamento.ItemIndex := 1;
   end;
   LvProdutos.OnItemClick := LvProdutosItemClick;
+  if Assigned(LvPromocao) then
+    LvPromocao.OnItemClick := LvProdutosItemClick;
   if Assigned(LvUltimasCompras) then
     LvUltimasCompras.OnItemClick := LvUltimasComprasItemClick;
   ListarProdutos;
+  ListarPromocoes;
   ListarUltimasCompras;
   AtualizarContadorItensDigitados;
 end;
@@ -2092,9 +3232,10 @@ begin
 
   AplicarIcone(TabCliente, 0);
   AplicarIcone(TabProdutos, 1);
-  AplicarIcone(TabUltimasCompras, 2);
-  AplicarIcone(TabDigitados, 3);
-  AplicarIcone(TabTotal, 4);
+  AplicarIcone(TabPromocao, 2);
+  AplicarIcone(TabUltimasCompras, 3);
+  AplicarIcone(TabDigitados, 4);
+  AplicarIcone(TabTotal, 5);
 end;
 
 procedure TfrmPedido.BtnBuscarProdClick(Sender: TObject);
@@ -2107,6 +3248,67 @@ begin
   ListarProdutos;
 end;
 
+procedure TfrmPedido.BtnBuscarPromocaoClick(Sender: TObject);
+begin
+  ListarPromocoes;
+end;
+
+procedure TfrmPedido.BtnBuscarPromocaoTap(Sender: TObject; const Point: TPointF);
+begin
+  ListarPromocoes;
+end;
+
+procedure TfrmPedido.CbModoBuscaPromocaoChange(Sender: TObject);
+begin
+  if not Assigned(EdBuscarPromocao) then
+    Exit;
+
+  if Assigned(CbModoBuscaPromocao) and (CbModoBuscaPromocao.ItemIndex = 1) then
+    EdBuscarPromocao.KeyboardType := TVirtualKeyboardType.NumberPad
+  else
+    EdBuscarPromocao.KeyboardType := TVirtualKeyboardType.Default;
+end;
+procedure TfrmPedido.BtnBuscarUltimasClick(Sender: TObject);
+begin
+  ListarUltimasCompras;
+end;
+
+procedure TfrmPedido.BtnBuscarUltimasTap(Sender: TObject; const Point: TPointF);
+begin
+  ListarUltimasCompras;
+end;
+
+procedure TfrmPedido.CbModoBuscaUltimasChange(Sender: TObject);
+begin
+  if not Assigned(EdBuscarUltimas) then
+    Exit;
+
+  if Assigned(CbModoBuscaUltimas) and (CbModoBuscaUltimas.ItemIndex = 1) then
+    EdBuscarUltimas.KeyboardType := TVirtualKeyboardType.NumberPad
+  else
+    EdBuscarUltimas.KeyboardType := TVirtualKeyboardType.Default;
+end;
+
+procedure TfrmPedido.BtnBuscarDigitadosClick(Sender: TObject);
+begin
+  ListarItensDigitados;
+end;
+
+procedure TfrmPedido.BtnBuscarDigitadosTap(Sender: TObject; const Point: TPointF);
+begin
+  ListarItensDigitados;
+end;
+
+procedure TfrmPedido.CbModoBuscaDigitadosChange(Sender: TObject);
+begin
+  if not Assigned(EdBuscarDigitados) then
+    Exit;
+
+  if Assigned(CbModoBuscaDigitados) and (CbModoBuscaDigitados.ItemIndex = 1) then
+    EdBuscarDigitados.KeyboardType := TVirtualKeyboardType.NumberPad
+  else
+    EdBuscarDigitados.KeyboardType := TVirtualKeyboardType.Default;
+end;
 function TfrmPedido.ProdutoJaDigitadoNoPedido(const ACodProduto: string): Boolean;
 var
   Q: TFDQuery;
@@ -2172,7 +3374,7 @@ begin
 
   if ProdutoJaDigitadoNoPedido(LCod) then
   begin
-    TDialogServiceAsync.ShowMessage('Este produto jÃ¡ foi incluÃ­do no pedido.');
+    TDialogServiceAsync.ShowMessage('Este produto já foi incluído no pedido.');
     Exit;
   end;
 
@@ -2268,6 +3470,7 @@ begin
   end;
 
   CarregarSituacaoDoSqlite(FClienteCodigo);
+  ApplyResponsiveLayout;
   ListarUltimasCompras;
   CriarOutboundPedidoDraft;
   AtualizarContadorItensDigitados;
@@ -2408,11 +3611,13 @@ begin
       lbPrazoPgto.Text := 'Clique para Selecionar';
 
     CarregarSituacaoDoSqlite(FClienteCodigo);
+    ApplyResponsiveLayout;
     ListarUltimasCompras;
     AtualizarContadorItensDigitados;
     if Assigned(TabMenu) and Assigned(TabCliente) then
       TabMenu.ActiveTab := TabCliente;
     AtualizarEstadoCabecalhoAbas;
+    dmApp.SetAppState('pedido', outboundPedidoId, '');
   finally
     Q.Free;
   end;
@@ -2445,6 +3650,7 @@ begin
       if AResult = mrYes then
       begin
         CancelarPedidoAtual;
+        dmApp.ClearAppState('pedido');
         FecharPedido;
       end;
     end
@@ -2457,7 +3663,7 @@ var
 begin
   if codCliente <= 0 then
   begin
-    TDialogServiceAsync.ShowMessage('Cliente invÃ¡lido.');
+    TDialogServiceAsync.ShowMessage('Cliente inválido.');
     Exit;
   end;
 
@@ -2481,6 +3687,7 @@ begin
   end;
 
   AtualizarOutboundPedido;
+  dmApp.ClearAppState('pedido');
   TDialogServiceAsync.MessageDialog('Pedido gravado com sucesso.',
     System.UITypes.TMsgDlgType.mtInformation,
     [System.UITypes.TMsgDlgBtn.mbOK],

@@ -1,9 +1,10 @@
-Ôªøunit unLogin;
+unit unLogin;
 
 interface
 
 uses
   System.SysUtils, System.Types, System.UITypes, System.Classes, System.Variants,
+  System.Math,
   System.JSON,
   FireDAC.Comp.Client,
   FMX.Types, FMX.Controls, FMX.Forms, FMX.Graphics, FMX.Dialogs, FMX.Objects,
@@ -40,15 +41,19 @@ type
     procedure FormResize(Sender: TObject);
     procedure imSairClick(Sender: TObject);
   private
+    FAutoSessionChecked: Boolean;
     procedure AtualizarStatus(const AText: string; AError: Boolean = False);
     function BaseUrlSelecionada: string;
     function RotuloParaApiUrl(const ARotuloOuUrl: string): string;
     function ApiUrlParaRotulo(const AUrl: string): string;
     procedure ApplyOrientationLayout;
+    procedure EnsurePrincipalForm;
+    procedure MostrarPrincipalOuRestaurar;
     function NormalizeApiError(const AMessage: string): string;
     function HasLocalData: Boolean;
     function GetCachedUser(const ALogin: string): TJSONObject;
     function GetSavedPassword: string;
+    function IsManualLogoutPending: Boolean;
   public
   end;
 
@@ -64,7 +69,20 @@ implementation
 
 uses
   unDMApp,
-  unPrincipal;
+  unPrincipal,
+  unPedido,
+  unPedidoItem,
+  unSync,
+  unClientes,
+  unClienteDetalhe,
+  unPedidosDigitados,
+  unPedidosEnviados,
+  unFormaPgto,
+  unPrazoPgto,
+  unClienteCadastro,
+  unCidadeBusca,
+  unOffline,
+  unDashBoard;
 
 procedure TfrmLogin.AtualizarStatus(const AText: string; AError: Boolean);
 begin
@@ -83,6 +101,9 @@ begin
     Result := Trim(CbBaseUrl.Text);
 
   Result := RotuloParaApiUrl(Result);
+
+//  Result := 'http://localhost:9000';
+
 end;
 
 function TfrmLogin.RotuloParaApiUrl(const ARotuloOuUrl: string): string;
@@ -91,9 +112,9 @@ var
 begin
   LValor := Trim(ARotuloOuUrl);
   if SameText(LValor, 'PLASFAN') then
-    Exit('http://plasfan.ddns.com.br:9000');
-  if SameText(LValor, 'FILHO DO CRIADOR') then
     Exit('http://plasfan.ddns.com.br:9004');
+  if SameText(LValor, 'FILHO DO CRIADOR') then
+    Exit('http://plasfan.ddns.com.br:9000');
   Result := LValor;
 end;
 
@@ -102,13 +123,85 @@ var
   LUrl: string;
 begin
   LUrl := Trim(AUrl);
-  if SameText(LUrl, 'http://plasfan.ddns.com.br:9000') then
-    Exit('PLASFAN');
   if SameText(LUrl, 'http://plasfan.ddns.com.br:9004') then
+    Exit('PLASFAN');
+  if SameText(LUrl, 'http://plasfan.ddns.com.br:9000') then
     Exit('FILHO DO CRIADOR');
   Result := LUrl;
 end;
 
+procedure TfrmLogin.EnsurePrincipalForm;
+begin
+  if not Assigned(frmPrincipal) then
+    Application.CreateForm(TfrmPrincipal, frmPrincipal);
+  if not Assigned(frmSync) then
+    Application.CreateForm(TfrmSync, frmSync);
+  if not Assigned(frmClientes) then
+    Application.CreateForm(TfrmClientes, frmClientes);
+  if not Assigned(frmClienteDetalhe) then
+    Application.CreateForm(TfrmClienteDetalhe, frmClienteDetalhe);
+  if not Assigned(frmPedido) then
+    Application.CreateForm(TfrmPedido, frmPedido);
+  if not Assigned(frmPedidoItem) then
+    Application.CreateForm(TfrmPedidoItem, frmPedidoItem);
+  if not Assigned(frmPedidosDigitados) then
+    Application.CreateForm(TfrmPedidosDigitados, frmPedidosDigitados);
+  if not Assigned(frmPedidosEnviados) then
+    Application.CreateForm(TfrmPedidosEnviados, frmPedidosEnviados);
+  if not Assigned(frmFormaPgto) then
+    Application.CreateForm(TfrmFormaPgto, frmFormaPgto);
+  if not Assigned(frmPrazoPgto) then
+    Application.CreateForm(TfrmPrazoPgto, frmPrazoPgto);
+  if not Assigned(frmClienteCadastro) then
+    Application.CreateForm(TfrmClienteCadastro, frmClienteCadastro);
+  if not Assigned(frmCidadeBusca) then
+    Application.CreateForm(TfrmCidadeBusca, frmCidadeBusca);
+  if not Assigned(frmOffline) then
+    Application.CreateForm(TfrmOffline, frmOffline);
+  if not Assigned(frmDashBoard) then
+    Application.CreateForm(TfrmDashBoard, frmDashBoard);
+end;
+
+procedure TfrmLogin.MostrarPrincipalOuRestaurar;
+var
+  LScreen: string;
+  LExtraJson: string;
+  LPedidoId: Integer;
+begin
+  EnsurePrincipalForm;
+  frmPrincipal.Show;
+  Application.ProcessMessages;
+
+  if Assigned(dmApp) and dmApp.GetAppState(LScreen, LPedidoId, LExtraJson) then
+  begin
+    if (SameText(LScreen, 'pedido') or SameText(LScreen, 'pedido_item')) and (LPedidoId > 0) then
+    begin
+      if not Assigned(frmPedido) then
+        Application.CreateForm(TfrmPedido, frmPedido);
+      frmPedido.CarregarPedidoDigitado(LPedidoId);
+      if frmPedido.outboundPedidoId = LPedidoId then
+      begin
+        if SameText(LScreen, 'pedido_item') then
+          frmPedido.RestaurarPedidoItem(LExtraJson)
+        else
+          frmPedido.Show;
+        Hide;
+        Exit;
+      end;
+      dmApp.ClearAppState(LScreen);
+    end
+    else if SameText(LScreen, 'sync') then
+    begin
+      if not Assigned(frmSync) then
+        Application.CreateForm(TfrmSync, frmSync);
+      frmSync.Show;
+      Hide;
+      Exit;
+    end;
+  end;
+
+  Hide;
+end;
 procedure TfrmLogin.BtnEntrarClick(Sender: TObject);
 var
   LResponse: TJSONObject;
@@ -153,9 +246,10 @@ begin
       try
         if (LSenhaSalva <> '') and SameText(LSenha, LSenhaSalva) then
         begin
+          dmApp.SetAppConfigValue('login_saida_manual', '0');
+          EnsurePrincipalForm;
           frmPrincipal.AtualizarContextoUsuario(LCached);
-          frmPrincipal.Show;
-          Hide;
+          MostrarPrincipalOuRestaurar;
           Exit;
         end;
       finally
@@ -168,9 +262,10 @@ begin
   try
     LResponse := dmApp.Login(Trim(EdLogin.Text), LSenha);
     try
+      dmApp.SetAppConfigValue('login_saida_manual', '0');
+      EnsurePrincipalForm;
       frmPrincipal.AtualizarContextoUsuario(LResponse);
-      frmPrincipal.Show;
-      Hide;
+      MostrarPrincipalOuRestaurar;
     finally
       LResponse.Free;
     end;
@@ -179,7 +274,7 @@ begin
     begin
       LMsg := NormalizeApiError(E.Message);
       if SameText(LMsg, 'Usuario ou senha invalidos') then
-        LMsg := 'Usu√°rio e Senha Inv√°lidos';
+        LMsg := 'Usu·rio e Senha Inv·lidos';
       AtualizarStatus(LMsg, True);
     end;
   end;
@@ -188,20 +283,49 @@ end;
 procedure TfrmLogin.FormShow(Sender: TObject);
 var
   LAtual: string;
+  LCached: TJSONObject;
+  LLogin: string;
 begin
   CbBaseUrl.Items.Clear;
   CbBaseUrl.Items.Add('PLASFAN');
   CbBaseUrl.Items.Add('FILHO DO CRIADOR');
-{  LAtual := ApiUrlParaRotulo(dmApp.ApiBaseUrl);
-  if (LAtual <> '') and (CbBaseUrl.Items.IndexOf(LAtual) < 0) then
-    CbBaseUrl.Items.Add(LAtual);
-  CbBaseUrl.ItemIndex := CbBaseUrl.Items.IndexOf(LAtual);}
+  CbBaseUrl.ItemIndex := CbBaseUrl.Items.IndexOf(LAtual);
   if CbBaseUrl.ItemIndex < 0 then
     CbBaseUrl.ItemIndex := 0;
   EdLogin.Text := dmApp.GetSessionLogin;
   EdSenha.Text := GetSavedPassword;
   AtualizarStatus('');
   ApplyOrientationLayout;
+
+  if (not IsManualLogoutPending) and Assigned(frmPrincipal) and (frmPrincipal.id_representante > 0) then
+  begin
+    dmApp.SetAppConfigValue('login_saida_manual', '0');
+    MostrarPrincipalOuRestaurar;
+    Exit;
+  end;
+
+  if not IsManualLogoutPending then
+  begin
+    if not FAutoSessionChecked then
+      FAutoSessionChecked := True;
+    LLogin := Trim(EdLogin.Text);
+    LCached := GetCachedUser(LLogin);
+    if Assigned(LCached) then
+    begin
+      try
+        EnsurePrincipalForm;
+        frmPrincipal.AtualizarContextoUsuario(LCached);
+        if frmPrincipal.id_representante > 0 then
+        begin
+          dmApp.SetAppConfigValue('login_saida_manual', '0');
+          MostrarPrincipalOuRestaurar;
+          Exit;
+        end;
+      finally
+        LCached.Free;
+      end;
+    end;
+  end;
 end;
 
 procedure TfrmLogin.FormResize(Sender: TObject);
@@ -212,84 +336,228 @@ end;
 procedure TfrmLogin.ApplyOrientationLayout;
 var
   LIsLandscape: Boolean;
+  LIsTablet: Boolean;
   LScale: Single;
   LBottomMargin: Single;
+  LRightSafe: Single;
   LCardW: Single;
   LCardH: Single;
   LHeaderH: Single;
+  LHeaderY: Single;
+  LContentTop: Single;
+  LContentBottom: Single;
+  LContentH: Single;
+  LBaseCardW: Single;
+  LBaseCardH: Single;
+  LInputW: Single;
+  LInputX: Single;
+  LRightX: Single;
+  LRightW: Single;
+  LLabel: TLabel;
 begin
   LIsLandscape := Width > Height;
+  LIsTablet := Min(Width, Height) >= 600;
+  LBottomMargin := Max(92, AndroidNavigationInset(False) + 52);
+  LRightSafe := 0;
+  LBaseCardW := 270;
+  LBaseCardH := 316;
 
-  // Cabe√ßalho responsivo (evita distor√ß√£o e corte da arte em diferentes telas)
+  // CabeÁalho responsivo (evita distorÁ„o e corte da arte em diferentes telas)
   Image1.Align := TAlignLayout.Client;
   Image1.WrapMode := TImageWrapMode.Fit;
   Image1.HitTest := False;
 
+  lySaidas.Visible := False;
+  lySair.Visible := True;
+  lbottom.Align := TAlignLayout.None;
+  lbottom.Margins.Bottom := 0;
+  lbottom.Height := 58;
+  lbottom.Width := Width - LRightSafe;
+  lbottom.Position.X := 0;
+  lbottom.Position.Y := Height - lbottom.Height - LBottomMargin;
+  if lbottom.Position.Y < 0 then
+    lbottom.Position.Y := Height - lbottom.Height - 12;
+
+  lySair.Align := TAlignLayout.MostRight;
+  lySair.Width := 64;
+  lySair.Height := lbottom.Height;
+  rSair.Height := lySair.Height;
+
   if LIsLandscape then
   begin
-    LHeaderH := Height * 0.24;
+    LHeaderH := Height * 0.22;
     if LHeaderH < 68 then
       LHeaderH := 68;
-    if LHeaderH > 120 then
-      LHeaderH := 120;
+    if LHeaderH > 118 then
+      LHeaderH := 118;
+    TopBar.Align := TAlignLayout.None;
+    TopBar.Width := Width;
+    TopBar.Position.X := 0;
     TopBar.Height := LHeaderH;
+    LHeaderY := -46;
+    TopBar.Position.Y := LHeaderY;
     Layout1.Margins.Top := 0;
     LbSubtitulo.Visible := False;
     LbSubtitulo.Opacity := 0;
     LbStatus.Visible := False;
 
-    LBottomMargin := 4;
-    lbottom.Align := TAlignLayout.Bottom;
-    lbottom.Margins.Bottom := LBottomMargin;
-    lbottom.Height := 48;
-    lbottom.Width := Width;
-    lbottom.Position.X := 0;
-
     Card.Align := TAlignLayout.None;
-    LScale := 0.78;
-    LCardW := Card.Width * LScale;
-    LCardH := Card.Height * LScale;
-    if (Height - TopBar.Height - LBottomMargin - lbottom.Height - 24) < LCardH then
+    Card.Scale.X := 1;
+    Card.Scale.Y := 1;
+    Card.Width := Min(Width - 160, 520);
+    if Card.Width < 420 then
+      Card.Width := Min(Width - 48, 420);
+    Card.Height := 176;
+
+    LInputX := 24;
+    LInputW := Card.Width - 190;
+    if LInputW < 230 then
+      LInputW := Card.Width - 48;
+    if LInputW > 310 then
+      LInputW := 310;
+    LRightX := LInputX + LInputW + 24;
+    LRightW := Card.Width - LRightX - 24;
+    if LRightW < 120 then
     begin
-      LScale := (Height - TopBar.Height - LBottomMargin - lbottom.Height - 24) / Card.Height;
-      if LScale < 0.75 then
-        LScale := 0.75;
-      LCardW := Card.Width * LScale;
-      LCardH := Card.Height * LScale;
+      LInputW := Card.Width * 0.58;
+      LRightX := LInputX + LInputW + 18;
+      LRightW := Card.Width - LRightX - 24;
     end;
-    Card.Scale.X := LScale;
-    Card.Scale.Y := LScale;
+    CbBaseUrl.Position.X := LInputX;
+    EdLogin.Position.X := LInputX;
+    CbBaseUrl.Width := LInputW;
+    EdLogin.Width := LInputW;
+    LbStatus.Width := Card.Width - 38;
+
+    LbSubtitulo.Position.X := LInputX;
+    LbSubtitulo.Position.Y := 20;
+    LLabel := FindComponent('LbBaseUrl') as TLabel;
+    if Assigned(LLabel) then
+    begin
+      LLabel.Position.X := LInputX;
+      LLabel.Position.Y := 22;
+      LLabel.Width := LInputW;
+    end;
+    LLabel := FindComponent('LbUsuario') as TLabel;
+    if Assigned(LLabel) then
+    begin
+      LLabel.Position.X := LInputX;
+      LLabel.Position.Y := 82;
+      LLabel.Width := LInputW;
+    end;
+    LLabel := FindComponent('LbSenha') as TLabel;
+    if Assigned(LLabel) then
+    begin
+      LLabel.Position.X := LRightX;
+      LLabel.Position.Y := 22;
+      LLabel.Width := LRightW;
+    end;
+    CbBaseUrl.Position.Y := 44;
+    EdLogin.Position.Y := 104;
+    EdSenha.Position.X := LRightX;
+    EdSenha.Position.Y := 44;
+    EdSenha.Width := LRightW;
+    BtnEntrar.Position.X := LRightX;
+    BtnEntrar.Position.Y := 104;
+    BtnEntrar.Width := LRightW;
+    BtnEntrar.Height := 38;
+
+    LContentTop := TopBar.Position.Y + TopBar.Height + 6;
+    LContentBottom := lbottom.Position.Y - 8;
+    LContentH := LContentBottom - LContentTop;
+
+    LCardW := Card.Width;
+    LCardH := Card.Height;
+    if LContentH < LCardH then
+    begin
+      Card.Height := Max(154, LContentH);
+      BtnEntrar.Position.Y := Card.Height - BtnEntrar.Height - 14;
+      LCardH := Card.Height;
+    end;
+
     Card.Position.X := (Width - LCardW) / 2;
-    Card.Position.Y := TopBar.Height + ((Height - TopBar.Height - LBottomMargin - lbottom.Height - LCardH) / 2);
-    if Card.Position.Y < (TopBar.Height + 4) then
-      Card.Position.Y := TopBar.Height + 4;
+    Card.Position.Y := LContentTop + ((LContentH - LCardH) / 2);
+    if Card.Position.Y < LContentTop then
+      Card.Position.Y := LContentTop;
   end
   else
   begin
-    LHeaderH := Height * 0.17;
-    if LHeaderH < 110 then
-      LHeaderH := 110;
+    if LIsTablet then
+      LHeaderH := Height * 0.15
+    else
+      LHeaderH := Height * 0.17;
+    if LHeaderH < 104 then
+      LHeaderH := 104;
     if LHeaderH > 170 then
       LHeaderH := 170;
+    TopBar.Align := TAlignLayout.None;
+    TopBar.Width := Width;
+    TopBar.Position.X := 0;
     TopBar.Height := LHeaderH;
+    TopBar.Position.Y := 0;
     Layout1.Margins.Top := 0;
-    Card.Align := TAlignLayout.Center;
-    Card.Scale.X := 1;
-    Card.Scale.Y := 1;
-    Card.Position.X := 0;
-    Card.Position.Y := 0;
+
     LbSubtitulo.Visible := True;
     LbSubtitulo.Opacity := 1;
     LbStatus.Visible := True;
-    Card.Height := 316;
-    LbStatus.Position.Y := 320;
 
-    lbottom.Align := TAlignLayout.MostBottom;
-    if IsXiaomiDevice then
-      lbottom.Margins.Bottom := 50
+    Card.Align := TAlignLayout.None;
+    Card.Scale.X := 1;
+    Card.Scale.Y := 1;
+    Card.Width := Min(Width - 48, 330);
+    if Card.Width < 270 then
+      Card.Width := Max(Width - 32, 250);
+    Card.Height := 316;
+
+    LInputW := Card.Width - 36;
+    LInputX := 18;
+    LbSubtitulo.Position.X := LInputX;
+    LbSubtitulo.Position.Y := 19;
+    LLabel := FindComponent('LbBaseUrl') as TLabel;
+    if Assigned(LLabel) then
+    begin
+      LLabel.Position.X := LInputX;
+      LLabel.Position.Y := 54;
+      LLabel.Width := LInputW;
+    end;
+    LLabel := FindComponent('LbUsuario') as TLabel;
+    if Assigned(LLabel) then
+    begin
+      LLabel.Position.X := LInputX;
+      LLabel.Position.Y := 120;
+      LLabel.Width := LInputW;
+    end;
+    LLabel := FindComponent('LbSenha') as TLabel;
+    if Assigned(LLabel) then
+    begin
+      LLabel.Position.X := LInputX;
+      LLabel.Position.Y := 189;
+      LLabel.Width := LInputW;
+    end;
+    CbBaseUrl.Position.X := LInputX;
+    CbBaseUrl.Position.Y := 80;
+    EdLogin.Position.X := LInputX;
+    EdLogin.Position.Y := 144;
+    EdSenha.Position.X := LInputX;
+    EdSenha.Position.Y := 208;
+    BtnEntrar.Position.X := LInputX;
+    BtnEntrar.Position.Y := 263;
+    BtnEntrar.Height := 42;
+    CbBaseUrl.Width := LInputW;
+    EdLogin.Width := LInputW;
+    EdSenha.Width := LInputW;
+    BtnEntrar.Width := LInputW;
+    LbStatus.Width := Card.Width - 38;
+    LbStatus.Position.Y := Card.Height + 4;
+
+    LContentTop := TopBar.Height + 8;
+    LContentBottom := lbottom.Position.Y - 8;
+    LContentH := LContentBottom - LContentTop;
+    if LContentH < Card.Height then
+      Card.Position.Y := LContentTop
     else
-      lbottom.Margins.Bottom := 0;
-    lbottom.Height := 72;
+      Card.Position.Y := LContentTop + ((LContentH - Card.Height) / 2);
+    Card.Position.X := (Width - Card.Width) / 2;
   end;
 end;
 
@@ -305,6 +573,13 @@ begin
   LText := Trim(AMessage);
   if (LText = '') then
     Exit;
+  if (Pos('12002', LText) > 0) or
+     (Pos('TEMPO LIMITE', UpperCase(LText)) > 0) or
+     (Pos('TIMEOUT', UpperCase(LText)) > 0) then
+  begin
+    Result := 'Tempo limite ao conectar com o servidor.';
+    Exit;
+  end;
   LStart := Pos('{', LText);
   if LStart = 0 then
     Exit;
@@ -357,34 +632,77 @@ var
   LLogin: string;
   LJson: string;
   LValue: TJSONValue;
+  LRepId: Integer;
 begin
   Result := nil;
   if not Assigned(dmApp) or not dmApp.FDConnection.Connected then
     Exit;
+
+  LLogin := '';
+  LJson := '';
+  LRepId := 0;
 
   LQuery := TFDQuery.Create(nil);
   try
     LQuery.Connection := dmApp.FDConnection;
     LQuery.SQL.Text := 'select login, user_json from api_session where id = 1';
     LQuery.Open;
-    LLogin := Trim(LQuery.FieldByName('login').AsString);
-    LJson := Trim(LQuery.FieldByName('user_json').AsString);
+    if not LQuery.IsEmpty then
+    begin
+      LLogin := Trim(LQuery.FieldByName('login').AsString);
+      LJson := Trim(LQuery.FieldByName('user_json').AsString);
+    end;
   finally
     LQuery.Free;
   end;
 
-  if (LJson = '') then
-    Exit;
   if (ALogin <> '') and (LLogin <> '') and (not SameText(ALogin, LLogin)) then
     Exit;
 
-  LValue := TJSONObject.ParseJSONValue(LJson);
-  if LValue is TJSONObject then
-    Result := TJSONObject(LValue)
-  else
-    LValue.Free;
-end;
+  if LJson <> '' then
+  begin
+    LValue := TJSONObject.ParseJSONValue(LJson);
+    if LValue is TJSONObject then
+    begin
+      Result := TJSONObject(LValue);
+      Exit;
+    end
+    else
+      LValue.Free;
+  end;
 
+  try
+    LRepId := StrToIntDef(Trim(dmApp.FDConnection.ExecSQLScalar(
+      'select coalesce(value, '''') from app_config where key = ''cod_representante''')), 0);
+  except
+    LRepId := 0;
+  end;
+
+  if LRepId <= 0 then
+    Exit;
+
+  LQuery := TFDQuery.Create(nil);
+  try
+    LQuery.Connection := dmApp.FDConnection;
+    LQuery.SQL.Text :=
+      'select id, coalesce(nom_representante, '''') as nom_representante ' +
+      'from representante where id = :p0';
+    LQuery.ParamByName('p0').AsInteger := LRepId;
+    LQuery.Open;
+    if LQuery.IsEmpty then
+      Exit;
+
+    Result := TJSONObject.Create;
+    Result.AddPair('cod_representante', TJSONNumber.Create(LQuery.FieldByName('id').AsInteger));
+    Result.AddPair('nom_representante', LQuery.FieldByName('nom_representante').AsString);
+    if LLogin <> '' then
+      Result.AddPair('logusu', LLogin)
+    else if ALogin <> '' then
+      Result.AddPair('logusu', ALogin);
+  finally
+    LQuery.Free;
+  end;
+end;
 function TfrmLogin.GetSavedPassword: string;
 begin
   Result := '';
@@ -393,6 +711,23 @@ begin
       Result := Trim(dmApp.FDConnection.ExecSQLScalar('select senha from api_session where id = 1'));
   except
     // ignore if column missing or any error
+  end;
+end;
+
+function TfrmLogin.IsManualLogoutPending: Boolean;
+var
+  LValue: string;
+begin
+  Result := False;
+  try
+    if Assigned(dmApp) and dmApp.FDConnection.Connected then
+    begin
+      LValue := Trim(dmApp.FDConnection.ExecSQLScalar(
+        'select coalesce(value, '''') from app_config where key = ''login_saida_manual'''));
+      Result := SameText(LValue, '1') or SameText(LValue, 'S') or SameText(LValue, 'TRUE');
+    end;
+  except
+    Result := False;
   end;
 end;
 

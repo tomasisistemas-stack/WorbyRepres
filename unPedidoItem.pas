@@ -1,4 +1,4 @@
-Ôªøunit unPedidoItem;
+unit unPedidoItem;
 
 interface
 
@@ -57,9 +57,16 @@ type
     FEditingPedidoId: Integer;
     FEditingItemOrd: Integer;
     FViewOnly: Boolean;
+    FPromocao: Boolean;
+    procedure FormClose(Sender: TObject; var Action: TCloseAction);
     function FmtNumero(const AValue: Double; const ADecimals: Integer = 2): string;
     function FmtMoeda(const AValue: Double): string;
     function ParseNumber(const AText: string; out AValue: Double): Boolean;
+    function ObterCodRepresentanteLocal: Integer;
+    function ObterDescontoMaximoItem(const ACodRepresentante: Integer): Double;
+    procedure AplicarSituacaoPromocao;
+    procedure SalvarEstadoApp(const AModo: string);
+    procedure VoltarEstadoParaPedido;
     procedure AddItemToOutbound;
     procedure BtnAdicionarClick(Sender: TObject);
     procedure BtnCancelarClick(Sender: TObject);
@@ -126,7 +133,10 @@ begin
   LMargin := Max(12, LW * 0.05);
   LGap := 10;
   LTopH := EnsureRange(LH * 0.15, 78, 120);
-  LContentW := Min(LW - (LMargin * 2), 560);
+  if Min(LW, LH) >= 600 then
+    LContentW := Min(LW - (LMargin * 2), 720)
+  else
+    LContentW := Min(LW - (LMargin * 2), 560);
   if LContentW < 260 then
     LContentW := LW - (LMargin * 2);
   LX := (LW - LContentW) * 0.5;
@@ -187,7 +197,7 @@ begin
 
   if LLandscape then
   begin
-    // Em paisagem, total na mesma linha do bloco de edi√ß√£o
+    // Em paisagem, total na mesma linha do bloco de ediÁ„o
     LPrecoW := (LContentW - LGap) * 0.70;
     LTotalW := LContentW - LPrecoW - LGap;
     CardPreco.SetBounds(LX, CardProduto.Position.Y + CardProduto.Height + LGap, LPrecoW, LPrecoH);
@@ -242,7 +252,7 @@ begin
     LbQtdUn.Position.Y := 46;
   end;
 
-  // Total: t√≠tulo acima do valor, sem corte
+  // Total: tÌtulo acima do valor, sem corte
   LbTotalTitulo.AutoSize := False;
   LbTotalTitulo.Position.X := 20;
   LbTotalTitulo.Position.Y := 8;
@@ -277,20 +287,17 @@ begin
   else begin
    // LBtnY := LH - LRodapeH - LRodapeBottom - 10;
 
-    if IsXiaomiDevice then
-      LRodapeBottom := 50
-    else
-      LRodapeBottom := 0;
+    LRodapeBottom := 50;
   end;
   lyRodape.Margins.Bottom := LRodapeBottom;
 
 
   LBtnW := lyRodape.Width * 0.5;
   Layout2.Align := TAlignLayout.None;
-  // Layout2 cont√©m BtnAdicionar -> direita
+  // Layout2 contÈm BtnAdicionar -> direita
   Layout2.SetBounds(LBtnW, 0, lyRodape.Width - LBtnW, lyRodape.Height);
   Layout3.Align := TAlignLayout.None;
-  // Layout3 cont√©m BtnCancelar -> esquerda
+  // Layout3 contÈm BtnCancelar -> esquerda
   Layout3.SetBounds(0, 0, LBtnW, lyRodape.Height);
 
   CardProduto.BringToFront;
@@ -299,6 +306,39 @@ begin
   lyRodape.BringToFront;
 end;
 
+procedure TfrmPedidoItem.SalvarEstadoApp(const AModo: string);
+var
+  LObj: TJSONObject;
+  LPedidoId: Integer;
+begin
+  if not Assigned(dmApp) then
+    Exit;
+  if not Assigned(frmPedido) then
+    Exit;
+
+  LPedidoId := frmPedido.outboundPedidoId;
+  if LPedidoId <= 0 then
+    Exit;
+
+  LObj := TJSONObject.Create;
+  try
+    LObj.AddPair('modo', AModo);
+    LObj.AddPair('cod_produto', FProdutoCodigo);
+    LObj.AddPair('item_ord', TJSONNumber.Create(FEditingItemOrd));
+    LObj.AddPair('qtd', EdQtd.Text);
+    LObj.AddPair('preco', EdPreco.Text);
+    LObj.AddPair('desc_pct', EdDescPct.Text);
+    dmApp.SetAppState('pedido_item', LPedidoId, LObj.ToJSON);
+  finally
+    LObj.Free;
+  end;
+end;
+
+procedure TfrmPedidoItem.VoltarEstadoParaPedido;
+begin
+  if Assigned(dmApp) and Assigned(frmPedido) and (frmPedido.outboundPedidoId > 0) then
+    dmApp.SetAppState('pedido', frmPedido.outboundPedidoId, '');
+end;
 procedure TfrmPedidoItem.AddItemToOutbound;
 var
   LPreco: Double;
@@ -309,11 +349,11 @@ var
   LPedidoId: Integer;
 begin
   if not Assigned(frmPedido) then
-    raise Exception.Create('Pedido n√£o est√° aberto.');
+    raise Exception.Create('Pedido n„o est· aberto.');
 
   LPedidoId := frmPedido.outboundPedidoId;
   if LPedidoId <= 0 then
-    raise Exception.Create('Pedido outbound n√£o inicializado.');
+    raise Exception.Create('Pedido outbound n„o inicializado.');
 
   if not ParseNumber(EdPreco.Text, LPreco) then
     LPreco := FPrecoBase;
@@ -376,6 +416,7 @@ begin
     ValidarPreco;
     ValidarDesconto;
     AddItemToOutbound;
+    VoltarEstadoParaPedido;
     if Assigned(frmPedido) then
       frmPedido.AtualizarContadorItensDigitados;
     Close;
@@ -408,6 +449,129 @@ begin
   );
 end;
 
+function TfrmPedidoItem.ObterCodRepresentanteLocal: Integer;
+var
+  LQuery: TFDQuery;
+begin
+  Result := 0;
+  LQuery := TFDQuery.Create(nil);
+  try
+    LQuery.Connection := dmApp.FDConnection;
+    LQuery.SQL.Text := 'select coalesce(value, '''') as value from app_config where key = :p0';
+    LQuery.ParamByName('p0').AsString := 'cod_representante';
+    LQuery.Open;
+    if not LQuery.Eof then
+      Result := StrToIntDef(Trim(LQuery.FieldByName('value').AsString), 0);
+    LQuery.Close;
+
+    if Result <= 0 then
+    begin
+      LQuery.SQL.Text := 'select id from representante where id is not null order by id limit 1';
+      LQuery.Open;
+      if not LQuery.Eof then
+        Result := LQuery.FieldByName('id').AsInteger;
+    end;
+  finally
+    LQuery.Free;
+  end;
+end;
+
+function TfrmPedidoItem.ObterDescontoMaximoItem(const ACodRepresentante: Integer): Double;
+var
+  LQuery: TFDQuery;
+  LDescontoCliente: Double;
+  LDescontoProduto: Double;
+  LCodCliente: Integer;
+begin
+  Result := FDescMax;
+  LDescontoCliente := 100;
+  LDescontoProduto := FDescMax;
+  LCodCliente := 0;
+  if Assigned(frmPedido) then
+    LCodCliente := frmPedido.codCliente;
+
+  LQuery := TFDQuery.Create(nil);
+  try
+    LQuery.Connection := dmApp.FDConnection;
+    LQuery.SQL.Text :=
+      'select coalesce(c.desconto_maximo, 100) as desconto_cliente, ' +
+      '       coalesce(p.promocao, ''N'') as promocao, ' +
+      '       coalesce( ' +
+      '         (select pr.desconto_maximo from produto_representante pr ' +
+      '          where pr.cod_produto = p.cod_produto and pr.id_representante = :cod_rep limit 1), ' +
+      '         coalesce( ' +
+      '           (select gr.desconto_maximo from grupo_representante gr ' +
+      '            where gr.cod_grupo = p.cod_grupo and gr.id_representante = :cod_rep limit 1), ' +
+      '           coalesce(p.desconto_maximo, 0) ' +
+      '         ) ' +
+      '       ) as desconto_produto ' +
+      'from produto p ' +
+      'left join cliente c on c.cod_cliente = :cod_cliente ' +
+      'where p.cod_produto = :cod_produto';
+    LQuery.ParamByName('cod_cliente').AsInteger := LCodCliente;
+    LQuery.ParamByName('cod_produto').AsInteger := StrToIntDef(FProdutoCodigo, 0);
+    LQuery.ParamByName('cod_rep').AsInteger := ACodRepresentante;
+    try
+      LQuery.Open;
+    except
+      Exit;
+    end;
+
+    if not LQuery.Eof then
+    begin
+      if SameText(Trim(LQuery.FieldByName('promocao').AsString), 'S') then
+        LDescontoProduto := 35
+      else
+        LDescontoProduto := LQuery.FieldByName('desconto_produto').AsFloat;
+      LDescontoCliente := LQuery.FieldByName('desconto_cliente').AsFloat;
+    end;
+  finally
+    LQuery.Free;
+  end;
+
+  Result := LDescontoProduto;
+  if Result > LDescontoCliente then
+    Result := LDescontoCliente;
+end;
+
+procedure TfrmPedidoItem.AplicarSituacaoPromocao;
+var
+  LQuery: TFDQuery;
+  LCodRepresentante: Integer;
+  LPrecoPromocao: Double;
+begin
+  FPromocao := False;
+  LCodRepresentante := ObterCodRepresentanteLocal;
+
+  LQuery := TFDQuery.Create(nil);
+  try
+    LQuery.Connection := dmApp.FDConnection;
+    LQuery.SQL.Text :=
+      'select coalesce(preco_promocao, 0) as preco_promocao, ' +
+      '       coalesce(promocao, ''N'') as promocao ' +
+      'from produto where cod_produto = :p0';
+    LQuery.ParamByName('p0').AsInteger := StrToIntDef(FProdutoCodigo, 0);
+    try
+      LQuery.Open;
+    except
+      Exit;
+    end;
+
+    if not LQuery.Eof then
+    begin
+      FPromocao := SameText(Trim(LQuery.FieldByName('promocao').AsString), 'S');
+      LPrecoPromocao := LQuery.FieldByName('preco_promocao').AsFloat;
+      if FPromocao and (LPrecoPromocao > 0) then
+        FPrecoBase := LPrecoPromocao / 0.65;
+    end;
+  finally
+    LQuery.Free;
+  end;
+
+  FDescMax := ObterDescontoMaximoItem(LCodRepresentante);
+  FValorMin := FPrecoBase - (FPrecoBase * (FDescMax / 100));
+end;
+
 function TfrmPedidoItem.ValidarLimitesEntrada(const AShowMessage: Boolean): Boolean;
 var
   LPrecoDigitado: Double;
@@ -419,7 +583,7 @@ begin
   begin
     Result := False;
     if AShowMessage then
-      AvisarCampoInvalido('Pre√ßo unit√°rio inv√°lido.', EdPreco);
+      AvisarCampoInvalido('PreÁo unit·rio inv·lido.', EdPreco);
     Exit;
   end;
 
@@ -427,7 +591,7 @@ begin
   begin
     Result := False;
     if AShowMessage then
-      AvisarCampoInvalido('% de desconto inv√°lido.', EdDescPct);
+      AvisarCampoInvalido('% de desconto inv·lido.', EdDescPct);
     Exit;
   end;
 
@@ -437,7 +601,7 @@ begin
     Result := False;
     if AShowMessage then
       AvisarCampoInvalido(
-        Format('Pre√ßo abaixo do permitido. M√≠nimo: R$ %.2f', [FValorMin]),
+        Format('PreÁo abaixo do permitido. MÌnimo: R$ %.2f', [FValorMin]),
         EdPreco
       );
     Exit;
@@ -449,7 +613,7 @@ begin
     Result := False;
     if AShowMessage then
       AvisarCampoInvalido(
-        Format('Desconto acima do permitido. M√°ximo: %.2f%%', [FDescMax]),
+        Format('Desconto acima do permitido. M·ximo: %.2f%%', [FDescMax]),
         EdDescPct
       );
     Exit;
@@ -458,13 +622,15 @@ end;
 
 procedure TfrmPedidoItem.BtnCancelarClick(Sender: TObject);
 begin
+  VoltarEstadoParaPedido;
   Close;
 end;
 
 procedure TfrmPedidoItem.DoShow;
 begin
   inherited;
-  BtnAdicionar.OnClick := BtnAdicionarClick;
+    OnClose := FormClose;
+BtnAdicionar.OnClick := BtnAdicionarClick;
   BtnCancelar.OnClick := BtnCancelarClick;
   ApplyResponsiveLayout;
 end;
@@ -526,7 +692,7 @@ begin
   else
     LDecMask := '.' + StringOfChar('0', ADecimals);
 
-  // for√ßa se√ß√£o negativa expl√≠cita para manter o sinal "-"
+  // forÁa seÁ„o negativa explÌcita para manter o sinal "-"
   Result := FormatFloat('#,##0' + LDecMask + ';-#,##0' + LDecMask, AValue, FS);
 end;
 
@@ -631,6 +797,10 @@ begin
   if not ValidarLimitesEntrada(True) then
     Exit;
   ValidarPreco;
+  if FEditingItemOrd > 0 then
+    SalvarEstadoApp('edicao')
+  else
+    SalvarEstadoApp('novo');
 end;
 
 procedure TfrmPedidoItem.EdDescPctEnter(Sender: TObject);
@@ -643,6 +813,10 @@ begin
   if not ValidarLimitesEntrada(True) then
     Exit;
   ValidarDesconto;
+  if FEditingItemOrd > 0 then
+    SalvarEstadoApp('edicao')
+  else
+    SalvarEstadoApp('novo');
 end;
 
 procedure TfrmPedidoItem.EdQtdEnter(Sender: TObject);
@@ -652,7 +826,13 @@ end;
 
 procedure TfrmPedidoItem.EdQtdExit(Sender: TObject);
 begin
-  AjustarEValidarQuantidade(True);
+  if AjustarEValidarQuantidade(True) then
+  begin
+    if FEditingItemOrd > 0 then
+      SalvarEstadoApp('edicao')
+    else
+      SalvarEstadoApp('novo');
+  end;
 end;
 
 procedure TfrmPedidoItem.FocarProximoCampo(const AAtual: TControl);
@@ -666,13 +846,13 @@ begin
   begin
     if (Trim(EdPreco.Text) <> '') and (not ParseNumber(EdPreco.Text, LVal)) then
     begin
-      AvisarCampoInvalido('Pre√ßo unit√°rio inv√°lido.', EdPreco);
+      AvisarCampoInvalido('PreÁo unit·rio inv·lido.', EdPreco);
       Exit;
     end;
     if ParseNumber(EdPreco.Text, LVal) and
        (RoundTo(LVal, -2) < RoundTo(FValorMin, -2)) then
     begin
-      AvisarCampoInvalido(Format('Pre√ßo abaixo do permitido. M√≠nimo: R$ %.2f', [FValorMin]), EdPreco);
+      AvisarCampoInvalido(Format('PreÁo abaixo do permitido. MÌnimo: R$ %.2f', [FValorMin]), EdPreco);
       Exit;
     end;
     ValidarPreco;
@@ -684,13 +864,13 @@ begin
   begin
     if (Trim(EdDescPct.Text) <> '') and (not ParseNumber(EdDescPct.Text, LVal)) then
     begin
-      AvisarCampoInvalido('% de desconto inv√°lido.', EdDescPct);
+      AvisarCampoInvalido('% de desconto inv·lido.', EdDescPct);
       Exit;
     end;
     if ParseNumber(EdDescPct.Text, LVal) and
        (RoundTo(LVal, -2) > RoundTo(FDescMax, -2)) then
     begin
-      AvisarCampoInvalido(Format('Desconto acima do permitido. M√°ximo: %.2f%%', [FDescMax]), EdDescPct);
+      AvisarCampoInvalido(Format('Desconto acima do permitido. M·ximo: %.2f%%', [FDescMax]), EdDescPct);
       Exit;
     end;
     ValidarDesconto;
@@ -760,7 +940,7 @@ begin
   if LQtdMultipla <= 0 then
     Exit;
 
-  // Quantidade deve ser m√∫ltipla de qtd_multipla (ex.: 15, 30, 45...)
+  // Quantidade deve ser m˙ltipla de qtd_multipla (ex.: 15, 30, 45...)
   LDiv := LQtd / LQtdMultipla;
   LTol := 0.000001;
   if Abs(LDiv - Round(LDiv)) > LTol then
@@ -768,7 +948,7 @@ begin
     Result := False;
     if AShowMessage then
     begin
-      LMsg := 'A quantidade deve ser m√∫ltipla de ' + FmtNumero(LQtdMultipla, 2);
+      LMsg := 'A quantidade deve ser m˙ltipla de ' + FmtNumero(LQtdMultipla, 2);
       AvisarCampoInvalido(LMsg, EdQtd);
     end;
   end;
@@ -840,6 +1020,7 @@ procedure TfrmPedidoItem.SetProdutoDados(const ACodigo, ANome, AUnidade,
   AEstoque: string; APrecoVenda, ADescMax: Double; const AImagem: TBytes);
 var
   LStream: TBytesStream;
+  vQtd : Double;
 begin
   FViewOnly := False;
   FEditingPedidoId := 0;
@@ -856,7 +1037,6 @@ begin
   FProdutoCodigo := ACodigo;
   FProdutoNome := ANome;
   FUnidade := AUnidade;
-  LbProdNome.Text := ANome;
   if ACodigo <> '' then
     LbProdCodigo.Text := 'Codigo: ' + ACodigo
   else
@@ -869,7 +1049,13 @@ begin
 
   FPrecoBase := APrecoVenda;
   FDescMax := ADescMax;
+  AplicarSituacaoPromocao;
   FValorMin := FPrecoBase - (FPrecoBase * (FDescMax / 100));
+
+  if FPromocao then
+    LbProdNome.Text := ANome + ' (PROMOCAO)'
+  else
+    LbProdNome.Text := ANome;
 
   EdPreco.Text := FmtNumero(FPrecoBase, 2);
   EdPreco.KeyboardType := TVirtualKeyboardType.DecimalNumberPad;
@@ -880,7 +1066,11 @@ begin
   EdDescPct.FilterChar := '-0123456789,.';
   if Assigned(EdQtd) then
   begin
-    EdQtd.Text := '1';
+    if ObterQtdMultiplaProduto(vQtd) then
+      EdQtd.Text := FloatToStr(vQtd)
+    else
+      EdQtd.Text := '1';
+
     EdQtd.KeyboardType := TVirtualKeyboardType.NumberPad;
     EdQtd.TextSettings.HorzAlign := TTextAlign.Trailing;
     EdQtd.FilterChar := '0123456789';
@@ -931,6 +1121,7 @@ begin
     ThumbProduto.Fill.Kind := TBrushKind.Solid;
 
   RecalcularTotal;
+  SalvarEstadoApp('novo');
 end;
 
 procedure TfrmPedidoItem.SetEdicaoItem(const APedidoId, AItemOrd: Integer; const AQtd, APreco, ADescPct: Double);
@@ -951,36 +1142,47 @@ begin
   EdPreco.Text := FmtNumero(APreco, 2);
   EdDescPct.Text := FmtNumero(ADescPct, 2);
   RecalcularTotal;
+  SalvarEstadoApp('edicao');
 end;
 
 procedure TfrmPedidoItem.SetModoVisualizacao(const AQtd, APreco, ADescPct: Double);
 begin
-  FViewOnly := True;
+  FViewOnly := False;
   FEditingPedidoId := 0;
   FEditingItemOrd := 0;
   if Assigned(EdQtd) then
   begin
     EdQtd.Text := FmtNumero(AQtd, 0);
-    EdQtd.Enabled := False;
+    EdQtd.Enabled := True;
   end;
   if Assigned(EdPreco) then
   begin
     EdPreco.Text := FmtNumero(APreco, 2);
-    EdPreco.Enabled := False;
+    EdPreco.Enabled := True;
   end;
   if Assigned(EdDescPct) then
   begin
     EdDescPct.Text := FmtNumero(ADescPct, 2);
-    EdDescPct.Enabled := False;
+    EdDescPct.Enabled := True;
   end;
   if Assigned(BtnAdicionar) then
-    BtnAdicionar.Visible := False;
+    BtnAdicionar.Visible := True;
   if Assigned(BtnCancelar) then
     BtnCancelar.Visible := True;
+  if Assigned(LbAdicionar) then
+    LbAdicionar.Text := 'Adicionar';
   if Assigned(LbCancelar) then
-    LbCancelar.Text := 'Voltar';
+    LbCancelar.Text := 'Cancelar';
   RecalcularTotal;
   ApplyResponsiveLayout;
+  SalvarEstadoApp('novo');
+end;
+
+procedure TfrmPedidoItem.FormClose(Sender: TObject; var Action: TCloseAction);
+begin
+  VoltarEstadoParaPedido;
+  Action := TCloseAction.caFree;
+  frmPedidoItem := nil;
 end;
 
 end.
