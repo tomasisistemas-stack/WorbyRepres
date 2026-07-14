@@ -4431,8 +4431,8 @@ object frmPedido: TfrmPedido
               Size.Height = 88.000000000000000000
               Size.PlatformDefault = False
               TabOrder = 1
-              Viewport.Width = 304.000000000000000000
-              Viewport.Height = 84.000000000000000000
+              Viewport.Width = 308.000000000000000000
+              Viewport.Height = 88.000000000000000000
             end
           end
         end
