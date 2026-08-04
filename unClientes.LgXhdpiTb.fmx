@@ -1,0 +1,53 @@
+inherited frmClientes_LgXhdpiTb: TfrmClientes_LgXhdpiTb
+  ClientHeight = 829
+  ClientWidth = 480
+  DesignerMasterStyle = 3
+  inherited LayoutRoot: TLayout
+    Size.Width = 480.000000000000000000
+    Size.Height = 829.000000000000000000
+    inherited BackgroundRect: TRectangle
+      Size.Width = 480.000000000000000000
+      Size.Height = 829.000000000000000000
+    end
+    inherited TopBar: TRectangle
+      Size.Width = 480.000000000000000000
+    end
+    inherited lbottom: TLayout
+      Position.Y = 707.000000000000000000
+      Size.Width = 470.000000000000000000
+      inherited LyVoltar: TLayout
+        inherited ImgVoltar: TImage
+          MultiResBitmap.Height = 512
+          MultiResBitmap.Width = 512
+        end
+      end
+      inherited LyNovo: TLayout
+        Position.X = 332.000000000000000000
+        inherited BtnNovo: TRectangle
+          inherited LbNovo: TLabel
+            TextSettings.Font.StyleExt = {00070000000000000004000000}
+          end
+        end
+      end
+    end
+    inherited Layout1: TLayout
+      Size.Width = 460.000000000000000000
+      Size.Height = 393.000000000000000000
+      inherited LvClientes: TListView
+        Size.Width = 460.000000000000000000
+        Size.Height = 393.000000000000000000
+        ItemAppearanceObjects.ItemObjects.Text.PlaceOffset.Y = 1.000000000000000000
+        ItemAppearanceObjects.ItemObjects.Accessory.PlaceOffset.X = -8.000000000000000000
+        ItemAppearanceObjects.HeaderObjects.Text.Height = 20.000000000000000000
+        ItemAppearanceObjects.HeaderObjects.Text.PlaceOffset.X = 16.000000000000000000
+      end
+    end
+    inherited CardBusca: TRectangle
+      Size.Width = 460.000000000000000000
+      inherited BtnBuscar: TImage
+        MultiResBitmap.Height = 512
+        MultiResBitmap.Width = 512
+      end
+    end
+  end
+end

@@ -1,0 +1,151 @@
+object frmCidadeBusca: TfrmCidadeBusca
+  Left = 0
+  Top = 0
+  Caption = 'Buscar Cidade'
+  ClientHeight = 640
+  ClientWidth = 360
+  FormFactor.Width = 360
+  FormFactor.Height = 640
+  FormFactor.Devices = [Desktop]
+  OnShow = FormShow
+  DesignerMasterStyle = 3
+  object LayoutRoot: TLayout
+    Align = Contents
+    Size.Width = 360.000000000000000000
+    Size.Height = 640.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 0
+    object BackgroundRect: TRectangle
+      Align = Contents
+      Fill.Color = xFFEEF7FF
+      Size.Width = 360.000000000000000000
+      Size.Height = 640.000000000000000000
+      Size.PlatformDefault = False
+      Stroke.Kind = None
+    end
+    object TopBar: TRectangle
+      Align = Top
+      Fill.Color = xFF4A90E2
+      Size.Width = 360.000000000000000000
+      Size.Height = 96.000000000000000000
+      Size.PlatformDefault = False
+      Stroke.Kind = None
+      object LbTitulo: TLabel
+        StyledSettings = []
+        Position.X = 18.000000000000000000
+        Position.Y = 53.000000000000000000
+        Size.Width = 250.000000000000000000
+        Size.Height = 28.799999237060550000
+        Size.PlatformDefault = False
+        TextSettings.Font.Size = 24.000000000000000000
+        TextSettings.FontColor = claWhite
+        Text = 'Buscar Cidade'
+      end
+    end
+    object CardBusca: TRectangle
+      Align = Top
+      Margins.Left = 12.000000000000000000
+      Margins.Top = 12.000000000000000000
+      Margins.Right = 12.000000000000000000
+      Position.X = 12.000000000000000000
+      Position.Y = 108.000000000000000000
+      Size.Width = 336.000000000000000000
+      Size.Height = 82.000000000000000000
+      Size.PlatformDefault = False
+      Fill.Color = claWhite
+      Stroke.Kind = None
+      XRadius = 18.000000000000000000
+      YRadius = 18.000000000000000000
+      object LbBuscar: TLabel
+        StyledSettings = []
+        Position.X = 18.000000000000000000
+        Position.Y = 8.000000000000000000
+        Size.Width = 160.000000000000000000
+        Size.Height = 20.000000000000000000
+        Size.PlatformDefault = False
+        TextSettings.Font.Size = 13.000000000000000000
+        TextSettings.FontColor = xFF6B7280
+        Text = 'Buscar por cidade ou codigo'
+      end
+      object EdBuscar: TEdit
+        Touch.InteractiveGestures = [LongTap, DoubleTap]
+        Position.X = 18.000000000000000000
+        Position.Y = 34.000000000000000000
+        Size.Width = 220.000000000000000000
+        Size.Height = 36.000000000000000000
+        Size.PlatformDefault = False
+        TextPrompt = 'Cidade ou codigo'
+      end
+      object BtnBuscar: TRectangle
+        Position.X = 248.000000000000000000
+        Position.Y = 34.000000000000000000
+        Size.Width = 70.000000000000000000
+        Size.Height = 36.000000000000000000
+        Size.PlatformDefault = False
+        Fill.Color = xFF4A90E2
+        Stroke.Kind = None
+        XRadius = 18.000000000000000000
+        YRadius = 18.000000000000000000
+        OnClick = BtnBuscarClick
+        object LbBtnBuscar: TLabel
+          Align = Contents
+          StyledSettings = []
+          Size.Width = 70.000000000000000000
+          Size.Height = 36.000000000000000000
+          Size.PlatformDefault = False
+          TextSettings.Font.Size = 14.000000000000000000
+          TextSettings.FontColor = claWhite
+          TextSettings.HorzAlign = Center
+          TextSettings.VertAlign = Center
+          Text = 'Buscar'
+        end
+      end
+    end
+    object LvCidades: TListView
+      ItemAppearanceClassName = 'TListItemAppearance'
+      ItemEditAppearanceClassName = 'TListItemShowCheckAppearance'
+      HeaderAppearanceClassName = 'TListHeaderObjects'
+      FooterAppearanceClassName = 'TListHeaderObjects'
+      Align = Client
+      Size.Width = 360.000000000000000000
+      Size.Height = 366.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 2
+      OnItemClick = LvCidadesItemClick
+    end
+    object LyRodape: TLayout
+      Align = MostBottom
+      Margins.Left = 12.000000000000000000
+      Margins.Right = 12.000000000000000000
+      Margins.Bottom = 12.000000000000000000
+      Position.X = 12.000000000000000000
+      Position.Y = 556.000000000000000000
+      Size.Width = 336.000000000000000000
+      Size.Height = 72.000000000000000000
+      Size.PlatformDefault = False
+      object BtnVoltar: TRectangle
+        Align = Left
+        Size.Width = 140.000000000000000000
+        Size.Height = 72.000000000000000000
+        Size.PlatformDefault = False
+        Fill.Color = xFFDCEEFF
+        Stroke.Kind = None
+        XRadius = 22.000000000000000000
+        YRadius = 22.000000000000000000
+        OnClick = BtnVoltarClick
+        object LbVoltar: TLabel
+          Align = Contents
+          StyledSettings = []
+          Size.Width = 140.000000000000000000
+          Size.Height = 72.000000000000000000
+          Size.PlatformDefault = False
+          TextSettings.Font.Size = 16.000000000000000000
+          TextSettings.FontColor = xFF1E5A9A
+          TextSettings.HorzAlign = Center
+          TextSettings.VertAlign = Center
+          Text = 'Voltar'
+        end
+      end
+    end
+  end
+end

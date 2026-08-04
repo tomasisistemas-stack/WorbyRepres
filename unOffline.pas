@@ -53,7 +53,8 @@ implementation
 
 
 uses
-  unFuncoes;
+  unFuncoes,
+  unDMApp;
 
 procedure TfrmOffline.imgReconectarClick(Sender: TObject);
 begin
@@ -80,11 +81,15 @@ end;
 procedure TfrmOffline.DoShow;
 begin
   inherited;
+  if Assigned(dmApp) then
+    dmApp.SetAppState('offline', 0, '');
   OnClose := FormClose;
 end;
 
 procedure TfrmOffline.FormClose(Sender: TObject; var Action: TCloseAction);
 begin
+  if Assigned(dmApp) then
+    dmApp.ClearAppState('offline');
   Action := TCloseAction.caFree;
   frmOffline := nil;
 end;

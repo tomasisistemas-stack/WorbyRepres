@@ -48,7 +48,17 @@ type
     FQueueTotal: Integer;
     FQueueIsNewTable: Boolean;
     FLastSyncProgressTick: Cardinal;
+    FDownloadStartTick: Cardinal;
+    FDownloadStartKb: Integer;
+    FDownloadSpeedKb: Double;
+    FSpeedIcon: TLayout;
+    FSpeedBar1: TRectangle;
+    FSpeedBar2: TRectangle;
+    FSpeedBar3: TRectangle;
+    FSpeedBar4: TRectangle;
+    FFormActive: Boolean;
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
+    procedure FormHide(Sender: TObject);
     procedure DoQueueProgress;
     procedure DoQueueMessage;
     procedure DoSyncProgress;
@@ -57,6 +67,8 @@ type
     procedure QueueProgress(const ATexto: string; AValor: Single);
     procedure QueueMessage(const AText: string);
     procedure SyncProgressHandler(const ATable: string; AInserted, ATotal: Integer; AIsNewTable: Boolean);
+    procedure EnsureSpeedIcon;
+    procedure AtualizarIconeVelocidade(const ASpeedKb: Double; AVisible: Boolean);
     procedure SetSyncUiEnabled(AEnabled: Boolean);
   private
     procedure AtualizarProgresso(const ATexto: string; AValor: Single);
@@ -157,9 +169,11 @@ end;
 
 procedure TfrmSync.FormShow(Sender: TObject);
 begin
+  FFormActive := True;
   if Assigned(dmApp) then
     dmApp.SetAppState('sync', 0, '');
   OnClose := FormClose;
+  OnHide := FormHide;
   AtualizarUltimaSyncLabel;
   AtualizarResumoEnvios;
   LbProgresso.Text := 'Aguardando sincronizacao';
@@ -168,7 +182,7 @@ begin
   TThread.ForceQueue(nil,
     procedure
     begin
-      if not (csDestroying in ComponentState) then
+      if (not (csDestroying in ComponentState)) and FFormActive and Visible then
         AtualizarUltimaSyncLabel;
     end);
 end;
@@ -440,6 +454,102 @@ begin
   close;
 end;
 
+procedure TfrmSync.EnsureSpeedIcon;
+
+  function CriarBarra(const AX, AY, AHeight: Single): TRectangle;
+  begin
+    Result := TRectangle.Create(Self);
+    Result.Parent := FSpeedIcon;
+    Result.Stored := False;
+    Result.HitTest := False;
+    Result.Width := 4;
+    Result.Height := AHeight;
+    Result.Position.X := AX;
+    Result.Position.Y := AY;
+    Result.XRadius := 2;
+    Result.YRadius := 2;
+    Result.Stroke.Kind := TBrushKind.None;
+    Result.Fill.Color := $FFE5E7EB;
+  end;
+
+begin
+  if Assigned(FSpeedIcon) then
+    Exit;
+
+  FSpeedIcon := TLayout.Create(Self);
+  FSpeedIcon.Parent := CardStatus;
+  FSpeedIcon.Stored := False;
+  FSpeedIcon.HitTest := False;
+  FSpeedIcon.Width := 30;
+  FSpeedIcon.Height := 20;
+  FSpeedIcon.Visible := False;
+
+  FSpeedBar1 := CriarBarra(2, 13, 5);
+  FSpeedBar2 := CriarBarra(9, 10, 8);
+  FSpeedBar3 := CriarBarra(16, 6, 12);
+  FSpeedBar4 := CriarBarra(23, 2, 16);
+end;
+
+procedure TfrmSync.AtualizarIconeVelocidade(const ASpeedKb: Double; AVisible: Boolean);
+var
+  LNivel: Integer;
+  LCorAtiva: TAlphaColor;
+  LTextWidth: Single;
+
+  procedure PintarBarra(ABarra: TRectangle; AAtiva: Boolean);
+  begin
+    if not Assigned(ABarra) then
+      Exit;
+    if AAtiva then
+      ABarra.Fill.Color := LCorAtiva
+    else
+      ABarra.Fill.Color := $FFE5E7EB;
+  end;
+
+begin
+  EnsureSpeedIcon;
+  FSpeedIcon.Visible := AVisible;
+  if not AVisible then
+  begin
+    LTextWidth := CardStatus.Width - LbProgressoTabela.Position.X - 18;
+    if LTextWidth > 80 then
+      LbProgressoTabela.Width := LTextWidth;
+    Exit;
+  end;
+
+  FSpeedIcon.Position.X := CardStatus.Width - FSpeedIcon.Width - 18;
+  FSpeedIcon.Position.Y := LbProgressoTabela.Position.Y - 2;
+  LTextWidth := FSpeedIcon.Position.X - LbProgressoTabela.Position.X - 6;
+  if LTextWidth > 80 then
+    LbProgressoTabela.Width := LTextWidth;
+
+  if ASpeedKb < 128 then
+  begin
+    LNivel := 1;
+    LCorAtiva := $FFE53935;
+  end
+  else if ASpeedKb < 512 then
+  begin
+    LNivel := 2;
+    LCorAtiva := $FFFF9800;
+  end
+  else if ASpeedKb < 1024 then
+  begin
+    LNivel := 3;
+    LCorAtiva := $FF2E7D32;
+  end
+  else
+  begin
+    LNivel := 4;
+    LCorAtiva := $FF00897B;
+  end;
+
+  PintarBarra(FSpeedBar1, LNivel >= 1);
+  PintarBarra(FSpeedBar2, LNivel >= 2);
+  PintarBarra(FSpeedBar3, LNivel >= 3);
+  PintarBarra(FSpeedBar4, LNivel >= 4);
+end;
+
 procedure TfrmSync.AtualizarProgresso(const ATexto: string; AValor: Single);
 begin
   LbProgresso.Text := ATexto;
@@ -468,7 +578,7 @@ begin
   TThread.Queue(nil,
     procedure
     begin
-      if (csDestroying in ComponentState) then
+      if (csDestroying in ComponentState) or (not FFormActive) or (not Visible) then
         Exit;
       FQueueTableName := LTable;
       FQueueInserted := LInserted;
@@ -480,6 +590,8 @@ end;
 
 procedure TfrmSync.QueueProgress(const ATexto: string; AValor: Single);
 begin
+  if not FFormActive then
+    Exit;
   FQueueProgressText := ATexto;
   FQueueProgressValue := AValor;
   TThread.Queue(nil, DoQueueProgress);
@@ -487,6 +599,8 @@ end;
 
 procedure TfrmSync.QueueMessage(const AText: string);
 begin
+  if not FFormActive then
+    Exit;
   FQueueMessageText := AText;
   TThread.Queue(nil, DoQueueMessage);
 end;
@@ -500,13 +614,16 @@ end;
 
 procedure TfrmSync.DoQueueProgress;
 begin
+  if (csDestroying in ComponentState) or (not FFormActive) or (not Visible) then
+    Exit;
   AtualizarProgresso(FQueueProgressText, FQueueProgressValue);
 end;
 
 procedure TfrmSync.DoQueueMessage;
 begin
+  if (csDestroying in ComponentState) or (not FFormActive) or (not Visible) then
+    Exit;
   LbProgresso.Text := FQueueMessageText;
-  ShowMessage(FQueueMessageText);
 end;
 
 procedure TfrmSync.DoSyncProgress;
@@ -515,6 +632,7 @@ var
   LNomeTabela: string;
   LDownloadProgress: Boolean;
   LApplyProgress: Boolean;
+  LVelocidade: string;
 
   function NomeTabelaAmigavel(const ATable: string): string;
   begin
@@ -534,6 +652,8 @@ var
       Exit('Imagens/Categorias');
     if SameText(ATable, 'fop') then
       Exit('Formas de pagamento');
+    if SameText(ATable, 'fop_prazo') then
+      Exit('Prazos por forma de pagamento');
     if SameText(ATable, 'prazo') then
       Exit('Prazos');
     if SameText(ATable, 'produto_representante') then
@@ -554,7 +674,43 @@ var
     else
       Result := AValue.ToString + ' KB';
   end;
+
+  function FormatVelocidadeDownload: string;
+  var
+    LNow: Cardinal;
+    LElapsedMs: Cardinal;
+    LDeltaKb: Integer;
+    LSpeedKb: Double;
+  begin
+    Result := '';
+    FDownloadSpeedKb := 0;
+    if FQueueInserted <= 0 then
+      Exit;
+
+    LNow := TThread.GetTickCount;
+    if (FDownloadStartTick = 0) or (FQueueInserted < FDownloadStartKb) then
+    begin
+      FDownloadStartTick := LNow;
+      FDownloadStartKb := FQueueInserted;
+      Exit;
+    end;
+
+    LElapsedMs := LNow - FDownloadStartTick;
+    LDeltaKb := FQueueInserted - FDownloadStartKb;
+    if (LElapsedMs < 500) or (LDeltaKb <= 0) then
+      Exit;
+
+    LSpeedKb := LDeltaKb / (LElapsedMs / 1000);
+    FDownloadSpeedKb := LSpeedKb;
+    if LSpeedKb >= 1024 then
+      Result := FormatFloat('0.00', LSpeedKb / 1024) + ' MB/s'
+    else
+      Result := FormatFloat('0', LSpeedKb) + ' KB/s';
+  end;
 begin
+  if (csDestroying in ComponentState) or (not FFormActive) or (not Visible) then
+    Exit;
+
   LDownloadProgress := SameText(FQueueTableName, '__script_download') and
     (((FQueueTotal > 5) and (FQueueInserted >= 0)) or
      ((FQueueTotal = 0) and (FQueueInserted > 0)));
@@ -575,8 +731,12 @@ begin
         LPerc := 100;
       ProgressBarSync.Value := 40 + Round(LPerc * 0.20);
       LbProgresso.Text := 'Etapa 3 de 5 - Baixando dados da API';
+      LVelocidade := FormatVelocidadeDownload;
       LbProgressoTabela.Text := 'Download: ' + FormatKb(FQueueInserted) + ' de ' +
         FormatKb(FQueueTotal) + ' - ' + LPerc.ToString + '%';
+      AtualizarIconeVelocidade(FDownloadSpeedKb, LVelocidade <> '');
+      if LVelocidade <> '' then
+        LbProgressoTabela.Text := LbProgressoTabela.Text + ' | Vel: ' + LVelocidade;
     end
     else
     begin
@@ -584,10 +744,15 @@ begin
       ProgressBarTable.Max := 1;
       ProgressBarTable.Value := 0;
       LbProgresso.Text := 'Etapa 3 de 5 - Baixando dados da API';
+      LVelocidade := FormatVelocidadeDownload;
       LbProgressoTabela.Text := 'Download: ' + FormatKb(FQueueInserted);
+      AtualizarIconeVelocidade(FDownloadSpeedKb, LVelocidade <> '');
+      if LVelocidade <> '' then
+        LbProgressoTabela.Text := LbProgressoTabela.Text + ' | Vel: ' + LVelocidade;
     end;
     Exit;
   end;
+  AtualizarIconeVelocidade(0, False);
 
   if LApplyProgress then
   begin
@@ -701,10 +866,14 @@ begin
     dmApp.SetAppConfigValue('ultima_sincronizacao', FormatDateTime('yyyy-mm-dd hh:nn:ss', Now));
     dmApp.SetAppConfigValue('ultima_sincronizacao_label', FormatDateTime('dd/mm/yyyy hh:nn', Now));
   end;
-  AtualizarProgresso('Sincronizacao concluida', ProgressBarSync.Max);
-  AtualizarUltimaSyncLabel;
-  AtualizarResumoEnvios;
-  SetSyncUiEnabled(True);
+  if (not (csDestroying in ComponentState)) and FFormActive and Visible then
+  begin
+    AtualizarProgresso('Sincronizacao concluida', ProgressBarSync.Max);
+    AtualizarUltimaSyncLabel;
+    AtualizarResumoEnvios;
+    AtualizarIconeVelocidade(0, False);
+    SetSyncUiEnabled(True);
+  end;
   FSyncRunning := False;
   if Assigned(dmApp) then
     dmApp.OnSyncProgress := nil;
@@ -716,7 +885,11 @@ end;
 
 procedure TfrmSync.DoFailSync;
 begin
-  SetSyncUiEnabled(True);
+  if (not (csDestroying in ComponentState)) and FFormActive and Visible then
+  begin
+    AtualizarIconeVelocidade(0, False);
+    SetSyncUiEnabled(True);
+  end;
   FSyncRunning := False;
   if Assigned(dmApp) then
     dmApp.OnSyncProgress := nil;
@@ -750,10 +923,11 @@ const
     'prazo_representante'
   );
 
-  CTabelasSyncGlobais: array[0..5] of string = (
+  CTabelasSyncGlobais: array[0..6] of string = (
     'produto',
     'subcategoria',
     'fop',
+    'fop_prazo',
     'prazo',
     'grade_comissao',
     'escala_comissao'
@@ -763,6 +937,9 @@ var
   LMax: Integer;
   LIdRep: Integer;
 begin
+  if not FFormActive then
+    Exit;
+
   if not Assigned(dmApp) then
   begin
     LbProgresso.Text := 'Sem conexao com o banco local.';
@@ -785,6 +962,10 @@ begin
     Exit;
   FSyncRunning := True;
   FLastSyncProgressTick := 0;
+  FDownloadStartTick := 0;
+  FDownloadStartKb := 0;
+  FDownloadSpeedKb := 0;
+  AtualizarIconeVelocidade(0, False);
   SetSyncUiEnabled(False);
   {$IFDEF ANDROID}
   if Assigned(frmPrincipal) then
@@ -887,10 +1068,22 @@ end;
 
 procedure TfrmSync.FormClose(Sender: TObject; var Action: TCloseAction);
 begin
+  if FSyncRunning then
+  begin
+    Action := TCloseAction.caNone;
+    Exit;
+  end;
+
+  FormHide(Sender);
   if Assigned(dmApp) then
     dmApp.ClearAppState('sync');
   Action := TCloseAction.caFree;
   frmSync := nil;
+end;
+
+procedure TfrmSync.FormHide(Sender: TObject);
+begin
+  FFormActive := False;
 end;
 
 end.

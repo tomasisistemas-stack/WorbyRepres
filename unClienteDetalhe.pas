@@ -131,10 +131,15 @@ begin
     LbTitulo.Visible := True;
     LbTitulo.BringToFront;
 
+    LBottomSafe := AndroidNavigationInset(False);
+    if LBottomSafe < 56 then
+      LBottomSafe := 56;
+
     PresentedScrollBox1.Padding.Top := 8;
-    Layout1.Height := 56;
-    Layout1.Margins.Bottom := 12;
-    PresentedScrollBox1.Padding.Bottom := Layout1.Height + Layout1.Margins.Bottom;
+    Layout1.Align := TAlignLayout.Bottom;
+    Layout1.Height := 50;
+    Layout1.Margins.Bottom := LBottomSafe;
+    PresentedScrollBox1.Padding.Bottom := Layout1.Height + LBottomSafe + 8;
 
     LGap := 12;
     LColW := (Width - 48) / 2;
@@ -177,6 +182,8 @@ begin
     Layout3.Width := Width / 2;
     BtnPedido.Align := TAlignLayout.Client;
     BtnCancelar.Align := TAlignLayout.Client;
+    BtnPedido.Margins.Bottom := 5;
+    BtnCancelar.Margins.Bottom := 5;
     LBtnW := (Width - 32 - 8) / 2;
     BtnPedido.Width := LBtnW;
     BtnCancelar.Width := LBtnW;

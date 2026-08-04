@@ -66,6 +66,7 @@ type
     procedure EnsureDatabase;
     procedure ExecSQL(const ASql: string; const AParams: array of Variant);
     procedure ApplySqliteScript(const AScript: string);
+    procedure NormalizarCnpjClientes;
     procedure GetTableColumns(const ATableName: string; AColumns, ATypes: TStrings; AIncludeBlobs: Boolean = False);
     procedure LogRequest(const AMethod, AEndpoint, ARequest, AResponse: string; AStatusCode: Integer);
     function RequestLogAvailable: Boolean;
@@ -330,6 +331,12 @@ const
     ' prazo_padrao INTEGER,' +
     ' conta_padrao INTEGER,' +
     ' nao_gerar_cr TEXT' +
+    ');' +
+    'CREATE TABLE IF NOT EXISTS fop_prazo (' +
+    ' cod_fop INTEGER NOT NULL,' +
+    ' id_prazo INTEGER NOT NULL,' +
+    ' padrao TEXT,' +
+    ' PRIMARY KEY (cod_fop, id_prazo)' +
     ');' +
     'CREATE TABLE IF NOT EXISTS grupo_representante (' +
     ' cod_grupo INTEGER NOT NULL,' +
@@ -1840,6 +1847,62 @@ begin
   end;
 end;
 
+procedure TdmApp.NormalizarCnpjClientes;
+var
+  Q: TFDQuery;
+  U: TFDQuery;
+  LCodCliente: Integer;
+  LCnpj: string;
+  LDigits: string;
+  I: Integer;
+begin
+  if not TableExists('cliente') then
+    Exit;
+
+  Q := TFDQuery.Create(nil);
+  U := TFDQuery.Create(nil);
+  try
+    Q.Connection := FDConnection;
+    U.Connection := FDConnection;
+    Q.SQL.Text :=
+      'select cod_cliente, cnpj from cliente ' +
+      'where cnpj is not null and length(trim(cnpj)) > 0';
+    Q.Open;
+
+    U.SQL.Text := 'update cliente set cnpj = :p0 where cod_cliente = :p1';
+    while not Q.Eof do
+    begin
+      LCodCliente := Q.FieldByName('cod_cliente').AsInteger;
+      LCnpj := Trim(Q.FieldByName('cnpj').AsString);
+      LDigits := '';
+      for I := 1 to Length(LCnpj) do
+        if CharInSet(LCnpj[I], ['0'..'9']) then
+          LDigits := LDigits + LCnpj[I];
+
+      if Length(LDigits) = 14 then
+      begin
+        LCnpj := Copy(LDigits, 1, 2) + '.' +
+          Copy(LDigits, 3, 3) + '.' +
+          Copy(LDigits, 6, 3) + '/' +
+          Copy(LDigits, 9, 4) + '-' +
+          Copy(LDigits, 13, 2);
+
+        if LCnpj <> Q.FieldByName('cnpj').AsString then
+        begin
+          U.ParamByName('p0').AsString := LCnpj;
+          U.ParamByName('p1').AsInteger := LCodCliente;
+          U.ExecSQL;
+        end;
+      end;
+
+      Q.Next;
+    end;
+  finally
+    U.Free;
+    Q.Free;
+  end;
+end;
+
 function TdmApp.GetApiBaseUrl: string;
 var
   LQuery: TFDQuery;
@@ -1943,7 +2006,7 @@ end;
 
 function TdmApp.IsDailySyncRequired(out AMessage: string): Boolean;
 const
-  CRequiredTables: array[0..12] of string = (
+  CRequiredTables: array[0..13] of string = (
     'representante',
     'cliente',
     'produto',
@@ -1951,6 +2014,7 @@ const
     'vendas1',
     'vendas2',
     'fop',
+    'fop_prazo',
     'prazo',
     'cidades',
     'produto_representante',
@@ -2104,7 +2168,9 @@ var
   LBody: TJSONObject;
   LOldUserJson: string;
   LOldLogin: string;
+  LOldBaseUrl: string;
   LLoginChanged: Boolean;
+  LBaseChanged: Boolean;
   LRepChanged: Boolean;
   LOldJson: TJSONValue;
   LOldObj: TJSONObject;
@@ -2133,12 +2199,15 @@ begin
   LOldRep := 0;
   LNewRep := 0;
   LOldLogin := '';
+  LOldBaseUrl := '';
 
   // usuario/representante anterior gravado na sessao local
   try
     LOldLogin := Trim(FDConnection.ExecSQLScalar('select coalesce(login, '''') from api_session where id = 1'));
+    LOldBaseUrl := Trim(FDConnection.ExecSQLScalar('select coalesce(base_url, '''') from api_session where id = 1'));
   except
     LOldLogin := '';
+    LOldBaseUrl := '';
   end;
   LOldUserJson := Trim(FDConnection.ExecSQLScalar('select coalesce(user_json, '''') from api_session where id = 1'));
   if LOldUserJson <> '' then
@@ -2167,7 +2236,8 @@ begin
   end;
 
   LLoginChanged := (LOldLogin <> '') and (not SameText(LOldLogin, ALogin));
-  if LLoginChanged and (CountPendingPedidos > 0) then
+  LBaseChanged := (LOldBaseUrl <> '') and (not SameText(LOldBaseUrl, ApiBaseUrl));
+  if (LLoginChanged or LBaseChanged) and (CountPendingPedidos > 0) then
     raise Exception.Create('Existem pedidos pendentes de envio. Sincronize antes de trocar o usu?rio.');
 
   LBody := TJSONObject.Create;
@@ -2194,16 +2264,17 @@ begin
   end;
 
   LLoginChanged := (LOldLogin <> '') and (not SameText(LOldLogin, ALogin));
+  LBaseChanged := (LOldBaseUrl <> '') and (not SameText(LOldBaseUrl, ApiBaseUrl));
   LRepChanged := (LOldRep > 0) and (LNewRep > 0) and (LOldRep <> LNewRep);
 
-  if (LLoginChanged or LRepChanged) and (CountPendingPedidos > 0) then
+  if (LLoginChanged or LBaseChanged or LRepChanged) and (CountPendingPedidos > 0) then
   begin
     Result.Free;
     raise Exception.Create('Existem pedidos pendentes de envio. Sincronize antes de trocar o usu?rio.');
   end;
 
-  // trocou representante -> limpa dados locais sincronizados e pedidos locais
-  if LRepChanged then
+  // trocou base/representante -> limpa dados locais sincronizados e pedidos locais
+  if LBaseChanged or LRepChanged then
   begin
     ClearSyncData;
     ExecSQL('delete from outbound_pedido_item', []);
@@ -2921,6 +2992,7 @@ begin
   ExecSQL('insert or ignore into sync_table_state (table_name) values (:p0)', ['vendas1']);
   ExecSQL('insert or ignore into sync_table_state (table_name) values (:p0)', ['vendas2']);
   ExecSQL('insert or ignore into sync_table_state (table_name) values (:p0)', ['fop']);
+  ExecSQL('insert or ignore into sync_table_state (table_name) values (:p0)', ['fop_prazo']);
   ExecSQL('insert or ignore into sync_table_state (table_name) values (:p0)', ['prazo']);
   ExecSQL('insert or ignore into sync_table_state (table_name) values (:p0)', ['cidades']);
   ExecSQL('insert or ignore into sync_table_state (table_name) values (:p0)', ['produto_representante']);
@@ -2934,7 +3006,6 @@ begin
   FDConnection.DriverName := 'SQLite';
   ApiBaseUrlOverride := AValue;
   SetAppConfigValue('api_base_url', AValue);
-  ExecSQL('update api_session set base_url = :p0 where id = 1', [AValue]);
 end;
 
 procedure TdmApp.SetAppConfigValue(const AKey, AValue: string);
@@ -3423,6 +3494,9 @@ begin
     LColumns.Free;
   end;
 
+  if SameText(ATableName, 'cliente') then
+    NormalizarCnpjClientes;
+
   LogRequest('SYNC_STEP', 'DONE', ATableName, 'rows=' + LTotal.ToString, 0);
 
   ExecSQL(
@@ -3496,6 +3570,7 @@ begin
   try
     if Trim(ACodRepresentante) <> '' then
       LBody.AddPair('codRepresentante', ACodRepresentante);
+    LBody.AddPair('versao', AppVersionName);
 
     LTablesJson := TJSONArray.Create;
     LSchema := TJSONObject.Create;
@@ -3531,6 +3606,12 @@ begin
       if Assigned(FOnSyncProgress) then
         FOnSyncProgress('__script_apply', 4, 5, False);
       ApplySqliteScript(LScript);
+      for I := 0 to High(ATables) do
+        if SameText(ATables[I], 'cliente') then
+        begin
+          NormalizarCnpjClientes;
+          Break;
+        end;
       if Assigned(FOnSyncProgress) then
         FOnSyncProgress('__script_finish', 5, 5, False);
 
@@ -3584,13 +3665,14 @@ end;
 
 function TdmApp.SyncAllTables(const ACodRepresentante: string): Integer;
 const
-  CDefaultTables: array[0..13] of string = (
+  CDefaultTables: array[0..14] of string = (
     'representante',
     'cliente',
     'vendas1',
     'vendas2',
     'produto',
     'fop',
+    'fop_prazo',
     'prazo',
     'cidades',
     'produto_representante',
@@ -3813,6 +3895,7 @@ begin
   try
     if Trim(ACodRepresentante) <> '' then
       LBody.AddPair('codRepresentante', ACodRepresentante);
+    LBody.AddPair('versao', AppVersionName);
     LTablesJson := TJSONArray.Create;
     for I := 0 to High(ATables) do
       LTablesJson.Add(ATables[I]);
@@ -3887,3 +3970,4 @@ begin
 end;
 
 end.
+

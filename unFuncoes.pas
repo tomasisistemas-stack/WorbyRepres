@@ -11,10 +11,15 @@ uses
   System.Classes,
   System.NetEncoding,
   FMX.Graphics,
+  System.Math,
   Soap.EncdDecd,
   FMX.DialogService,
   System.UITypes,
-  System.Net.HttpClient;
+  System.Net.HttpClient,
+  {$IFDEF MSWINDOWS}
+  Winapi.Windows,
+  {$ENDIF}
+  System.Types;
 
 procedure killApp;
 function ChecarConexao: Boolean;
@@ -22,9 +27,11 @@ function IsXiaomiDevice: Boolean;
 function AndroidNavigationInset(const AIsLandscape: Boolean): Single;
 function EncodeBase64(const texto: string): string;
 function DecodeBase64(const texto: string): string;
-function Base64FromBitmap(Bitmap: TBitmap): string;
-function BitmapFromBase64(const base64: string): TBitmap;
+function Base64FromBitmap(Bitmap: FMX.Graphics.TBitmap): string;
+function BitmapFromBase64(const base64: string): FMX.Graphics.TBitmap;
+procedure ReduzirBitmapParaMaximo(ABitmap: FMX.Graphics.TBitmap; const AMaxWidth, AMaxHeight: Integer);
 function GerarNomeArq(extensao: string): string;
+function AppVersionName: string;
 procedure SairdoSistema;
 
 var
@@ -208,7 +215,7 @@ begin
   end;
 end;
 
-function Base64FromBitmap(Bitmap: TBitmap): string;
+function Base64FromBitmap(Bitmap: FMX.Graphics.TBitmap): string;
 var
   Input: TBytesStream;
   Output: TStringStream;
@@ -229,7 +236,41 @@ begin
   end;
 end;
 
-function BitmapFromBase64(const base64: string): TBitmap;
+procedure ReduzirBitmapParaMaximo(ABitmap: FMX.Graphics.TBitmap; const AMaxWidth, AMaxHeight: Integer);
+var
+  LSrc: FMX.Graphics.TBitmap;
+  LScale: Single;
+  LNewWidth: Integer;
+  LNewHeight: Integer;
+begin
+  if (ABitmap = nil) or (AMaxWidth <= 0) or (AMaxHeight <= 0) then
+    Exit;
+
+  if (ABitmap.Width <= AMaxWidth) and (ABitmap.Height <= AMaxHeight) then
+    Exit;
+
+  LScale := Min(AMaxWidth / ABitmap.Width, AMaxHeight / ABitmap.Height);
+  LNewWidth := Max(1, Round(ABitmap.Width * LScale));
+  LNewHeight := Max(1, Round(ABitmap.Height * LScale));
+
+  LSrc := FMX.Graphics.TBitmap.Create;
+  try
+    LSrc.Assign(ABitmap);
+    ABitmap.SetSize(LNewWidth, LNewHeight);
+    if ABitmap.Canvas.BeginScene then
+    try
+      ABitmap.Clear(TAlphaColors.Null);
+      ABitmap.Canvas.DrawBitmap(LSrc, RectF(0, 0, LSrc.Width, LSrc.Height),
+        RectF(0, 0, LNewWidth, LNewHeight), 1, True);
+    finally
+      ABitmap.Canvas.EndScene;
+    end;
+  finally
+    LSrc.Free;
+  end;
+end;
+
+function BitmapFromBase64(const base64: string): FMX.Graphics.TBitmap;
 var
   Input: TStringStream;
   Output: TBytesStream;
@@ -240,7 +281,7 @@ begin
     try
       Soap.EncdDecd.DecodeStream(Input, Output);
       Output.Position := 0;
-      Result := TBitmap.Create;
+      Result := FMX.Graphics.TBitmap.Create;
       try
         Result.LoadFromStream(Output);
       except
@@ -255,6 +296,54 @@ begin
   end;
 end;
 
+function AppVersionName: string;
+{$IFDEF ANDROID}
+var
+  LInfo: JPackageInfo;
+{$ENDIF}
+{$IFDEF MSWINDOWS}
+var
+  LSize: DWORD;
+  LHandle: DWORD;
+  LBuffer: TBytes;
+  LValue: Pointer;
+  LLen: UINT;
+  LFixed: PVSFixedFileInfo;
+{$ENDIF}
+begin
+  Result := '';
+{$IFDEF ANDROID}
+  try
+    LInfo := TAndroidHelper.Context.getPackageManager.getPackageInfo(TAndroidHelper.Context.getPackageName, 0);
+    if Assigned(LInfo) and Assigned(LInfo.versionName) then
+      Result := JStringToString(LInfo.versionName);
+  except
+    Result := '';
+  end;
+{$ENDIF}
+{$IFDEF MSWINDOWS}
+  try
+    LSize := GetFileVersionInfoSize(PChar(ParamStr(0)), LHandle);
+    if LSize > 0 then
+    begin
+      SetLength(LBuffer, LSize);
+      if GetFileVersionInfo(PChar(ParamStr(0)), LHandle, LSize, @LBuffer[0]) and
+         VerQueryValue(@LBuffer[0], '\', LValue, LLen) then
+      begin
+        LFixed := PVSFixedFileInfo(LValue);
+        Result := Format('%d.%d.%d.%d', [
+          HiWord(LFixed.dwFileVersionMS), LoWord(LFixed.dwFileVersionMS),
+          HiWord(LFixed.dwFileVersionLS), LoWord(LFixed.dwFileVersionLS)
+        ]);
+      end;
+    end;
+  except
+    Result := '';
+  end;
+{$ENDIF}
+  if Result = '' then
+    Result := '1.0.0';
+end;
 function GerarNomeArq(extensao: string): string;
 begin
   Result := FormatDateTime('yymmddhhnnsszzz', Now) + '.' + extensao;

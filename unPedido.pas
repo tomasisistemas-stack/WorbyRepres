@@ -183,6 +183,11 @@ type
     FProdutoImagemTimer: TTimer;
     FProdutoImagemCursor: Integer;
     FProdutoImagemCampoImagem: string;
+    FProdutoImagemListView: TListView;
+    FListarProdutosRodando: Boolean;
+    FUltimaListarProdutos: TDateTime;
+    FListarUltimasRodando: Boolean;
+    FUltimaListarUltimas: TDateTime;
     procedure EnsureCardContatoEndereco;
     procedure AjustarCardContatoEndereco;
     function SafeFieldAsString(AQuery: TFDQuery; const ACampo: string): string;
@@ -223,10 +228,14 @@ type
     procedure EditarItemDigitado(const AItemOrd: Integer; const AVendas2Json: string);
     procedure ExcluirItemDigitado(const AItemOrd: Integer);
     procedure PararCargaImagensProdutos;
-    procedure IniciarCargaImagensProdutos(const ACampoImagem: string);
+    procedure IniciarCargaImagensProdutos(const ACampoImagem: string; AListView: TListView = nil);
     procedure ProdutoImagemTimer(Sender: TObject);
     function CarregarImagemSubcategoria(const ASubId, ACampoImagem: string): TBitmap;
     procedure AtribuirImagemProduto(AItem: TListViewItem; ABmp: TBitmap);
+
+    function CountPrazosFormaPgto(const ACodFop: Integer): Integer;
+    function PrazoPertenceFormaPgto(const ACodFop, ACodPrazo: Integer): Boolean;
+    procedure AplicarPrazoFormaPgto;
   protected
     procedure DoShow; override;
     procedure Resize; override;
@@ -239,6 +248,7 @@ type
     procedure SelecionarPrazoPgto(const ACodigo: Integer; const ANome: string);
     procedure SetCliente(const ANome, ACodigo, ACidade: string);
     procedure CarregarPedidoDigitado(const APedidoId: Integer);
+    procedure PrepararNovoPedido;
     procedure AtualizarOutboundPedido;
     procedure AtualizarContadorItensDigitados;
     procedure RestaurarPedidoItem(const AExtraJson: string);
@@ -254,7 +264,8 @@ implementation
 
 uses
   unFormaPgto,
-  unPrazoPgto, unDMApp, unPedidoItem, unFuncoes, unPedidosDigitados;
+  unPrazoPgto, unDMApp, unPedidoItem, unFuncoes, unPedidosDigitados,
+  unAndroidComboFix;
 
 procedure TfrmPedido.DoShow;
 begin
@@ -432,8 +443,14 @@ begin
     TabMenu.TabIndex := LIdx;
 
   AtualizarEstadoCabecalhoAbas;
-end;
 
+  if TabMenu.ActiveTab = TabProdutos then
+    ListarProdutos
+  else if TabMenu.ActiveTab = TabPromocao then
+    ListarPromocoes
+  else if TabMenu.ActiveTab = TabUltimasCompras then
+    ListarUltimasCompras;
+end;
 procedure TfrmPedido.ApplyResponsiveLayout;
 var
   LIsLandscape: Boolean;
@@ -442,6 +459,7 @@ var
   LFooterH: Single;
   LFooterTotalH: Single;
   LFooterW: Single;
+  LFooterTotalW: Single;
   LBtnW: Single;
   LGap: Single;
   LTabH: Single;
@@ -951,6 +969,13 @@ begin
   if LFooterW < 260 then
     LFooterW := ClientWidth - 8;
 
+  if LIsLandscape then
+    LFooterTotalW := Min(ClientWidth - 32, 980)
+  else
+    LFooterTotalW := LFooterW;
+  if LFooterTotalW < 260 then
+    LFooterTotalW := ClientWidth - 8;
+
   LFooter := FindComponent('lyRod') as TLayout;
   if not Assigned(LFooter) then
     LFooter := FindComponent('layout1') as TLayout;
@@ -984,9 +1009,9 @@ begin
   if Assigned(LFooterTotal) and Assigned(LFooter) then
   begin
     LFooterTotal.Align := TAlignLayout.None;
-    LFooterTotal.SetBounds((ClientWidth - LFooterW) * 0.5,
+    LFooterTotal.SetBounds((ClientWidth - LFooterTotalW) * 0.5,
                            LFooter.Position.Y - LFooterTotalH - 6,
-                           LFooterW, LFooterTotalH);
+                           LFooterTotalW, LFooterTotalH);
   end;
 
   LGap := 8;
@@ -1389,6 +1414,95 @@ begin
     LbPrazoPgtoTotal.Text := lbPrazoPgto.Text;
 end;
 
+function TfrmPedido.CountPrazosFormaPgto(const ACodFop: Integer): Integer;
+var
+  Q: TFDQuery;
+begin
+  Result := 0;
+  if ACodFop <= 0 then
+    Exit;
+  if not Assigned(dmApp) then
+    Exit;
+  if not dmApp.FDConnection.Connected then
+    Exit;
+
+  Q := TFDQuery.Create(nil);
+  try
+    Q.Connection := dmApp.FDConnection;
+    Q.SQL.Text := 'select count(*) as total from fop_prazo where cod_fop = :p0';
+    Q.ParamByName('p0').AsInteger := ACodFop;
+    Q.Open;
+    Result := Q.FieldByName('total').AsInteger;
+  finally
+    Q.Free;
+  end;
+end;
+
+function TfrmPedido.PrazoPertenceFormaPgto(const ACodFop, ACodPrazo: Integer): Boolean;
+var
+  Q: TFDQuery;
+begin
+  Result := False;
+  if (ACodFop <= 0) or (ACodPrazo <= 0) then
+    Exit;
+  if not Assigned(dmApp) then
+    Exit;
+  if not dmApp.FDConnection.Connected then
+    Exit;
+
+  Q := TFDQuery.Create(nil);
+  try
+    Q.Connection := dmApp.FDConnection;
+    Q.SQL.Text := 'select 1 from fop_prazo where cod_fop = :p0 and id_prazo = :p1 limit 1';
+    Q.ParamByName('p0').AsInteger := ACodFop;
+    Q.ParamByName('p1').AsInteger := ACodPrazo;
+    Q.Open;
+    Result := not Q.Eof;
+  finally
+    Q.Free;
+  end;
+end;
+
+procedure TfrmPedido.AplicarPrazoFormaPgto;
+var
+  Q: TFDQuery;
+  LTotal: Integer;
+  LCodPrazo: Integer;
+  LNomePrazo: string;
+begin
+  if codFormaPgto <= 0 then
+    Exit;
+
+  LTotal := CountPrazosFormaPgto(codFormaPgto);
+  if LTotal <= 0 then
+    Exit;
+
+  if LTotal > 1 then
+  begin
+    if (codPrazoPgto > 0) and (not PrazoPertenceFormaPgto(codFormaPgto, codPrazoPgto)) then
+      SelecionarPrazoPgto(0, '');
+    Exit;
+  end;
+
+  Q := TFDQuery.Create(nil);
+  try
+    Q.Connection := dmApp.FDConnection;
+    Q.SQL.Text :=
+      'select p.id as codigo, p.prazo as nome ' +
+      'from fop_prazo fp inner join prazo p on p.id = fp.id_prazo ' +
+      'where fp.cod_fop = :p0 limit 1';
+    Q.ParamByName('p0').AsInteger := codFormaPgto;
+    Q.Open;
+    if not Q.Eof then
+    begin
+      LCodPrazo := Q.FieldByName('codigo').AsInteger;
+      LNomePrazo := Q.FieldByName('nome').AsString;
+      SelecionarPrazoPgto(LCodPrazo, LNomePrazo);
+    end;
+  finally
+    Q.Free;
+  end;
+end;
 procedure TfrmPedido.SelecionarFormaPgto(const ACodigo: Integer; const ANome: string);
 begin
   codFormaPgto := ACodigo;
@@ -1399,6 +1513,7 @@ begin
   else
     lbFormaPgto.Text := 'Clique para Selecionar';
 
+  AplicarPrazoFormaPgto;
   SyncCardsTotalPgtoTexto;
   AtualizarOutboundPedido;
 end;
@@ -1813,15 +1928,23 @@ begin
   if Assigned(FProdutoImagemTimer) then
     FProdutoImagemTimer.Enabled := False;
   FProdutoImagemCursor := 0;
+  FProdutoImagemListView := nil;
 end;
 
-procedure TfrmPedido.IniciarCargaImagensProdutos(const ACampoImagem: string);
+procedure TfrmPedido.IniciarCargaImagensProdutos(const ACampoImagem: string; AListView: TListView);
+var
+  LListView: TListView;
 begin
   PararCargaImagensProdutos;
 
-  if (Trim(ACampoImagem) = '') or (not Assigned(LvProdutos)) or (LvProdutos.Items.Count = 0) then
+  LListView := AListView;
+  if LListView = nil then
+    LListView := LvProdutos;
+
+  if (Trim(ACampoImagem) = '') or (not Assigned(LListView)) or (LListView.Items.Count = 0) then
     Exit;
 
+  FProdutoImagemListView := LListView;
   FProdutoImagemCampoImagem := ACampoImagem;
   FProdutoImagemCursor := 0;
 
@@ -1831,7 +1954,7 @@ begin
   if not Assigned(FProdutoImagemTimer) then
   begin
     FProdutoImagemTimer := TTimer.Create(Self);
-    FProdutoImagemTimer.Interval := 80;
+    FProdutoImagemTimer.Interval := 250;
     FProdutoImagemTimer.OnTimer := ProdutoImagemTimer;
   end;
 
@@ -1878,6 +2001,7 @@ begin
       LStream.Position := 0;
       try
         LBmp.LoadFromStream(LStream);
+        ReduzirBitmapParaMaximo(LBmp, 192, 192);
       except
         LBmp.Free;
         Exit;
@@ -1914,22 +2038,27 @@ end;
 
 procedure TfrmPedido.ProdutoImagemTimer(Sender: TObject);
 var
+  LListView: TListView;
   LItem: TListViewItem;
   LCodProduto: string;
   LSubId: string;
   LBmp: TBitmap;
   LTentativas: Integer;
 begin
-  if (not Assigned(LvProdutos)) or (not Assigned(FProdutoImagemSubPorProduto)) then
+  LListView := FProdutoImagemListView;
+  if LListView = nil then
+    LListView := LvProdutos;
+
+  if (not Assigned(LListView)) or (not Assigned(FProdutoImagemSubPorProduto)) then
   begin
     PararCargaImagensProdutos;
     Exit;
   end;
 
   LTentativas := 0;
-  while (FProdutoImagemCursor < LvProdutos.Items.Count) and (LTentativas < 4) do
+  while (FProdutoImagemCursor < LListView.Items.Count) and (LTentativas < 1) do
   begin
-    LItem := LvProdutos.Items[FProdutoImagemCursor];
+    LItem := LListView.Items[FProdutoImagemCursor];
     Inc(FProdutoImagemCursor);
     Inc(LTentativas);
 
@@ -1948,7 +2077,7 @@ begin
     end;
   end;
 
-  if FProdutoImagemCursor >= LvProdutos.Items.Count then
+  if FProdutoImagemCursor >= LListView.Items.Count then
     PararCargaImagensProdutos;
 end;
 procedure TfrmPedido.ListarProdutos;
@@ -1986,9 +2115,17 @@ begin
   if LvProdutos = nil then
     Exit;
 
-  LColsProd := GetTabelaCols('produto');
-  if Length(LColsProd) = 0 then
+  if FListarProdutosRodando then
     Exit;
+  if (FUltimaListarProdutos > 0) and (MilliSecondsBetween(Now, FUltimaListarProdutos) < 500) then
+    Exit;
+
+  FListarProdutosRodando := True;
+  FUltimaListarProdutos := Now;
+  try
+    LColsProd := GetTabelaCols('produto');
+    if Length(LColsProd) = 0 then
+      Exit;
 
   LCampoCodigo := FindCampo(LColsProd, ['cod_produto', 'codigo', 'id']);
   LCampoNome := FindCampo(LColsProd, ['nom_produto', 'nome', 'produto']);
@@ -2026,31 +2163,36 @@ begin
 
   LSql := LSql + ' from produto p';
 
-  if LBuscarPorCodigo then
-    LSql := LSql + Format(' where p.%s = :p0', [LCampoCodigo])
-  else if LBuscarPorAmbos then
-    LSql := LSql + Format(
-      ' where (upper(coalesce(p.%s, '''')) like :p0 or cast(p.%s as text) = :p1)',
-      [LCampoNome, LCampoCodigo]
-    )
-  else
-    LSql := LSql + Format(' where upper(coalesce(p.%s, '''')) like :p0', [LCampoNome]);
-
+  if LTexto <> '' then
+  begin
+    if LBuscarPorCodigo then
+      LSql := LSql + Format(' where p.%s = :p0', [LCampoCodigo])
+    else if LBuscarPorAmbos then
+      LSql := LSql + Format(
+        ' where (upper(coalesce(p.%s, '''')) like :p0 or cast(p.%s as text) = :p1)',
+        [LCampoNome, LCampoCodigo]
+      )
+    else
+      LSql := LSql + Format(' where upper(coalesce(p.%s, '''')) like :p0', [LCampoNome]);
+  end;
   LSql := LSql + ' order by nom_produto limit 100';
 
   LQuery := TFDQuery.Create(nil);
   try
     LQuery.Connection := dmApp.FDConnection;
     LQuery.SQL.Text := LSql;
-    if LBuscarPorCodigo then
-      LQuery.ParamByName('p0').AsString := LTexto
-    else if LBuscarPorAmbos then
+    if LTexto <> '' then
     begin
-      LQuery.ParamByName('p0').AsString := '%' + UpperCase(LTexto) + '%';
-      LQuery.ParamByName('p1').AsString := LTexto;
-    end
-    else
-      LQuery.ParamByName('p0').AsString := '%' + UpperCase(LTexto) + '%';
+      if LBuscarPorCodigo then
+        LQuery.ParamByName('p0').AsString := LTexto
+      else if LBuscarPorAmbos then
+      begin
+        LQuery.ParamByName('p0').AsString := '%' + UpperCase(LTexto) + '%';
+        LQuery.ParamByName('p1').AsString := LTexto;
+      end
+      else
+        LQuery.ParamByName('p0').AsString := '%' + UpperCase(LTexto) + '%';
+    end;
     LQuery.Open;
 
     PararCargaImagensProdutos;
@@ -2110,6 +2252,7 @@ begin
           LStream.Position := 0;
           try
             LBmp.LoadFromStream(LStream);
+        ReduzirBitmapParaMaximo(LBmp, 192, 192);
             LImgObj := LItem.Objects.FindObjectT<TListItemImage>('image');
             if LImgObj <> nil then
             begin
@@ -2137,6 +2280,9 @@ begin
       IniciarCargaImagensProdutos(LCampoImagem);
   finally
     LQuery.Free;
+  end;
+  finally
+    FListarProdutosRodando := False;
   end;
 end;
 
@@ -2251,6 +2397,7 @@ begin
           LStream.Position := 0;
           try
             LBmp.LoadFromStream(LStream);
+        ReduzirBitmapParaMaximo(LBmp, 192, 192);
             LImgObj := LItem.Objects.FindObjectT<TListItemImage>('image');
             if LImgObj <> nil then
             begin
@@ -2479,6 +2626,7 @@ begin
             LStream.Position := 0;
             try
               LBmp.LoadFromStream(LStream);
+        ReduzirBitmapParaMaximo(LBmp, 192, 192);
               LImgObj := LItem.Objects.FindObjectT<TListItemImage>('image');
               if LImgObj <> nil then
               begin
@@ -2902,10 +3050,12 @@ var
   LQuery: TFDQuery;
   LItem: TListViewItem;
   LSql: string;
-  LImgField: TField;
-  LStream: TMemoryStream;
-  LBmp: TBitmap;
-  LImgObj: TListItemImage;
+  LColsProd: TArray<string>;
+  LColsSub: TArray<string>;
+  LCampoSubFk: string;
+  LCampoImagem: string;
+  LCodigo: string;
+  LSubId: string;
   LNome: string;
   LUn: string;
   LPrecoVenda: Double;
@@ -2919,19 +3069,49 @@ var
   LTextoFiltro: string;
   LBuscaCodigo: Boolean;
   LBuscaAmbos: Boolean;
+  LCarregarImagens: Boolean;
 begin
   if (LvUltimasCompras = nil) or (codCliente <= 0) then
     Exit;
 
-  LSql :=
-    'select ' +
-    '  p.cod_produto, p.nom_produto, p.unidade, p.preco_venda, p.desconto_maximo, p.qtd_estoque, ' +
-    '  v1.dtadoc, v2.qtd, v2.preco, s.imagem_bd ' +
-    'from vendas2 v2 ' +
-    'inner join produto p on p.cod_produto = v2.cod_produto ' +
-    'left outer join subcategoria s on s.id = p.subcategoria ' +
-    'inner join vendas1 v1 on v2.numdoc = v1.numdoc ' +
-    'where v1.cod_cliente = :p0 ';
+  if FListarUltimasRodando then
+    Exit;
+  if (FUltimaListarUltimas > 0) and (MilliSecondsBetween(Now, FUltimaListarUltimas) < 500) then
+    Exit;
+
+  FListarUltimasRodando := True;
+  FUltimaListarUltimas := Now;
+  try
+    LCarregarImagens := Assigned(TabMenu) and (TabMenu.ActiveTab = TabUltimasCompras);
+    LColsProd := GetTabelaCols('produto');
+    LCampoSubFk := FindCampo(LColsProd, ['id_subcategoria', 'cod_subcategoria', 'subcategoria', 'id_subcat']);
+    LColsSub := GetTabelaCols('subcategoria');
+    LCampoImagem := FindCampo(LColsSub, ['imagem_bd']);
+
+    LSql :=
+      'select ' +
+      '  p.cod_produto, p.nom_produto, p.unidade, p.preco_venda, p.desconto_maximo, p.qtd_estoque, ' +
+      '  coalesce(nullif(v1.dta_emissao, ''''), nullif(v1.dtadoc, ''''), nullif(v2.dtadoc, '''')) as dtadoc, v2.qtd, v2.preco ';
+    if (LCampoSubFk <> '') and (LCampoImagem <> '') then
+      LSql := LSql + Format(', p.%s as imagem_sub_id ', [LCampoSubFk]);
+
+    LSql := LSql +
+      'from vendas2 v2 ' +
+      'inner join produto p on p.cod_produto = v2.cod_produto ' +
+      'inner join vendas1 v1 on v2.numdoc = v1.numdoc ' +
+      'where v1.cod_cliente = :p0 ' +
+      '  and not exists ( ' +
+      '    select 1 ' +
+      '      from vendas2 v2x ' +
+      '      inner join vendas1 v1x on v2x.numdoc = v1x.numdoc ' +
+      '     where v1x.cod_cliente = v1.cod_cliente ' +
+      '       and v2x.cod_produto = v2.cod_produto ' +
+      '       and ( ' +
+      '         date(coalesce(nullif(v1x.dta_emissao, ''''), nullif(v1x.dtadoc, ''''), nullif(v2x.dtadoc, ''''))) > date(coalesce(nullif(v1.dta_emissao, ''''), nullif(v1.dtadoc, ''''), nullif(v2.dtadoc, ''''))) ' +
+      '         or (date(coalesce(nullif(v1x.dta_emissao, ''''), nullif(v1x.dtadoc, ''''), nullif(v2x.dtadoc, ''''))) = date(coalesce(nullif(v1.dta_emissao, ''''), nullif(v1.dtadoc, ''''), nullif(v2.dtadoc, ''''))) and cast(v1x.numdoc as integer) > cast(v1.numdoc as integer)) ' +
+      '         or (date(coalesce(nullif(v1x.dta_emissao, ''''), nullif(v1x.dtadoc, ''''), nullif(v2x.dtadoc, ''''))) = date(coalesce(nullif(v1.dta_emissao, ''''), nullif(v1.dtadoc, ''''), nullif(v2.dtadoc, ''''))) and v1x.numdoc = v1.numdoc and v2x.id > v2.id) ' +
+      '       ) ' +
+      '  ) ';
 
   if Assigned(EdBuscarUltimas) then
     LTextoFiltro := Trim(EdBuscarUltimas.Text)
@@ -2950,7 +3130,7 @@ begin
       LSql := LSql + ' and upper(coalesce(p.nom_produto, '''')) like :p1 ';
   end;
 
-  LSql := LSql + 'order by v1.dtadoc desc';
+  LSql := LSql + 'order by date(coalesce(nullif(v1.dta_emissao, ''''), nullif(v1.dtadoc, ''''), nullif(v2.dtadoc, ''''))) desc, cast(v1.numdoc as integer) desc limit 100';
 
   LQuery := TFDQuery.Create(nil);
   try
@@ -2960,7 +3140,7 @@ begin
     if LTextoFiltro <> '' then
     begin
       if LBuscaCodigo then
-        LQuery.ParamByName('p1').AsString := '%' + LTextoFiltro + '%'
+        LQuery.ParamByName('p1').AsString := LTextoFiltro
       else if LBuscaAmbos then
       begin
         LQuery.ParamByName('p1').AsString := '%' + UpperCase(LTextoFiltro) + '%';
@@ -2971,9 +3151,21 @@ begin
     end;
     LQuery.Open;
 
-    LvUltimasCompras.Items.Clear;
-    while not LQuery.Eof do
+    if LCarregarImagens then
     begin
+      PararCargaImagensProdutos;
+      if not Assigned(FProdutoImagemSubPorProduto) then
+        FProdutoImagemSubPorProduto := TDictionary<string, string>.Create
+      else
+        FProdutoImagemSubPorProduto.Clear;
+    end;
+
+    LvUltimasCompras.Items.BeginUpdate;
+    try
+      LvUltimasCompras.Items.Clear;
+      while not LQuery.Eof do
+    begin
+      LCodigo := LQuery.FieldByName('cod_produto').AsString;
       LNome := LQuery.FieldByName('nom_produto').AsString;
       LUn := LQuery.FieldByName('unidade').AsString;
       LPrecoVenda := SafeFieldAsFloat(LQuery, 'preco_venda');
@@ -2983,9 +3175,17 @@ begin
       LData := SafeFieldAsDate(LQuery, 'dtadoc');
       LQtd := SafeFieldAsFloat(LQuery, 'qtd');
       LPreco := SafeFieldAsFloat(LQuery, 'preco');
+      LSubId := SafeFieldAsString(LQuery, 'imagem_sub_id');
+      if LCarregarImagens and (LCodigo <> '') and (LSubId <> '') and Assigned(FProdutoImagemSubPorProduto) then
+      begin
+        if FProdutoImagemSubPorProduto.ContainsKey(LCodigo) then
+          FProdutoImagemSubPorProduto[LCodigo] := LSubId
+        else
+          FProdutoImagemSubPorProduto.Add(LCodigo, LSubId);
+      end;
 
       LItem := LvUltimasCompras.Items.Add;
-      LItem.TagString := LQuery.FieldByName('cod_produto').AsString;
+      LItem.TagString := LCodigo;
       LItem.Text := LNome;
 
       if LUn = '' then
@@ -2998,37 +3198,19 @@ begin
          FormatDateTime('dd/mm/yy', LData), FormatarNumero(LQtd, 2), FormatarMoeda(LPreco)]);
       LItem.Detail := LDetail;
 
-      LImgField := LQuery.FindField('imagem_bd');
-      if (LImgField <> nil) and (not LImgField.IsNull) then
-      begin
-        LStream := TMemoryStream.Create;
-        LBmp := TBitmap.Create;
-        try
-          if LImgField is TBlobField then
-            TBlobField(LImgField).SaveToStream(LStream);
-          LStream.Position := 0;
-          try
-            LBmp.LoadFromStream(LStream);
-            LImgObj := LItem.Objects.FindObjectT<TListItemImage>('image');
-            if LImgObj <> nil then
-            begin
-              LImgObj.Bitmap.Assign(LBmp);
-              LImgObj.OwnsBitmap := True;
-            end
-            else
-              LItem.Bitmap.Assign(LBmp);
-          except
-          end;
-        finally
-          LBmp.Free;
-          LStream.Free;
-        end;
-      end;
-
       LQuery.Next;
+      end;
+    finally
+      LvUltimasCompras.Items.EndUpdate;
     end;
+
+    if LCarregarImagens and (LCampoSubFk <> '') and (LCampoImagem <> '') then
+      IniciarCargaImagensProdutos(LCampoImagem, LvUltimasCompras);
   finally
     LQuery.Free;
+  end;
+  finally
+    FListarUltimasRodando := False;
   end;
 end;
 
@@ -3098,6 +3280,17 @@ begin
   SincronizarOutboundPedidoDraft;
 end;
 
+procedure TfrmPedido.PrepararNovoPedido;
+begin
+  outboundPedidoId := 0;
+  FVoltarParaPedidosDigitados := False;
+
+  if Assigned(MemoObservacoes) then
+    MemoObservacoes.Lines.Clear;
+  if Assigned(LbTitulo) then
+    LbTitulo.Text := 'Novo Pedido';
+end;
+
 procedure TfrmPedido.AtualizarContadorItensDigitados;
 var
   LCount: Int64;
@@ -3119,6 +3312,13 @@ end;
 procedure TfrmPedido.FormShow(Sender: TObject);
 begin
   ConfigurarAbasComIcone;
+  UseAndroidSafeComboPicker([
+    CbModoBuscaProd,
+    CbModoBuscaPromocao,
+    CbModoBuscaUltimas,
+    CbModoBuscaDigitados,
+    CbOrcamento
+  ]);
 
   if Assigned(CbModoBuscaProd) then
   begin
@@ -3198,7 +3398,17 @@ begin
     LvPromocao.OnItemClick := LvProdutosItemClick;
   if Assigned(LvUltimasCompras) then
     LvUltimasCompras.OnItemClick := LvUltimasComprasItemClick;
+  if Assigned(CbModoBuscaProd) and (CbModoBuscaProd.Items.Count > 2) then
+  begin
+    CbModoBuscaProd.ItemIndex := 2;
+    CbModoBuscaProdChange(CbModoBuscaProd);
+  end;
   ListarProdutos;
+  if Assigned(CbModoBuscaProd) and (CbModoBuscaProd.Items.Count > 1) then
+  begin
+    CbModoBuscaProd.ItemIndex := 1;
+    CbModoBuscaProdChange(CbModoBuscaProd);
+  end;
   ListarPromocoes;
   ListarUltimasCompras;
   AtualizarContadorItensDigitados;
@@ -3411,7 +3621,7 @@ begin
       'inner join vendas1 v1 on v1.numdoc = v2.numdoc ' +
       'inner join produto p on p.cod_produto = v2.cod_produto ' +
       'where v1.cod_cliente = :p0 and v2.cod_produto = :p1 ' +
-      'order by v1.dtadoc desc ' +
+      'order by date(coalesce(nullif(v1.dta_emissao, ''''), nullif(v1.dtadoc, ''''), nullif(v2.dtadoc, ''''))) desc, cast(v1.numdoc as integer) desc, v2.id desc ' +
       'limit 1';
     LQuery.ParamByName('p0').AsInteger := codCliente;
     LQuery.ParamByName('p1').AsString := LCod;
@@ -3634,6 +3844,10 @@ procedure TfrmPedido.ImgPrazoPgtoClick(Sender: TObject);
 begin
   if not Assigned(frmPrazoPgto) then
     Application.CreateForm(TfrmPrazoPgto, frmPrazoPgto);
+  if CountPrazosFormaPgto(codFormaPgto) > 0 then
+    frmPrazoPgto.CodFopFiltro := codFormaPgto
+  else
+    frmPrazoPgto.CodFopFiltro := 0;
   frmPrazoPgto.Show;
 end;
 

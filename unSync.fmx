@@ -30,7 +30,7 @@ object frmSync: TfrmSync
         Margins.Top = 50.000000000000000000
         Margins.Right = 10.000000000000000000
         Size.Width = 324.000000000000000000
-        Size.Height = 150.000000000000000000
+        Size.Height = 177.000000000000000000
         Size.PlatformDefault = False
         Stroke.Kind = None
         XRadius = 20.000000000000000000
@@ -89,11 +89,12 @@ object frmSync: TfrmSync
         object LbProgressoTabela: TLabel
           StyledSettings = []
           Position.X = 20.000000000000000000
-          Position.Y = 121.599998474121100000
+          Position.Y = 122.000000000000000000
           Size.Width = 296.000000000000000000
-          Size.Height = 15.000000000000000000
+          Size.Height = 47.000000000000000000
           Size.PlatformDefault = False
           TextSettings.FontColor = xFF6B7280
+          TextSettings.VertAlign = Leading
           Text = 'Registros: 0'
         end
       end

@@ -3,7 +3,7 @@ object frmClientes: TfrmClientes
   Top = 0
   Caption = 'Clientes'
   ClientHeight = 640
-  ClientWidth = 360
+  ClientWidth = 403
   FormFactor.Width = 360
   FormFactor.Height = 640
   FormFactor.Devices = [Desktop]
@@ -11,14 +11,14 @@ object frmClientes: TfrmClientes
   DesignerMasterStyle = 3
   object LayoutRoot: TLayout
     Align = Contents
-    Size.Width = 360.000000000000000000
+    Size.Width = 403.000000000000000000
     Size.Height = 640.000000000000000000
     Size.PlatformDefault = False
     TabOrder = 0
     object BackgroundRect: TRectangle
       Align = Contents
       Fill.Color = xFFEEF7FF
-      Size.Width = 360.000000000000000000
+      Size.Width = 403.000000000000000000
       Size.Height = 640.000000000000000000
       Size.PlatformDefault = False
       Stroke.Kind = None
@@ -26,8 +26,8 @@ object frmClientes: TfrmClientes
     object TopBar: TRectangle
       Align = Top
       Fill.Color = xFF4A90E2
-      Size.Width = 360.000000000000000000
-      Size.Height = 96.000000000000000000
+      Size.Width = 403.000000000000000000
+      Size.Height = 142.000000000000000000
       Size.PlatformDefault = False
       Stroke.Kind = None
       object LbTitulo: TLabel
@@ -47,7 +47,7 @@ object frmClientes: TfrmClientes
       Margins.Right = 10.000000000000000000
       Margins.Bottom = 50.000000000000000000
       Position.Y = 518.000000000000000000
-      Size.Width = 350.000000000000000000
+      Size.Width = 393.000000000000000000
       Size.Height = 72.000000000000000000
       Size.PlatformDefault = False
       TabOrder = 1
@@ -813,7 +813,7 @@ object frmClientes: TfrmClientes
         Align = MostRight
         Margins.Left = 8.000000000000000000
         Margins.Right = 8.000000000000000000
-        Position.X = 212.000000000000000000
+        Position.X = 255.000000000000000000
         Size.Width = 130.000000000000000000
         Size.Height = 72.000000000000000000
         Size.PlatformDefault = False
@@ -851,8 +851,8 @@ object frmClientes: TfrmClientes
       Margins.Top = 10.000000000000000000
       Margins.Right = 10.000000000000000000
       Margins.Bottom = 10.000000000000000000
-      Size.Width = 340.000000000000000000
-      Size.Height = 296.000000000000000000
+      Size.Width = 383.000000000000000000
+      Size.Height = 204.000000000000000000
       Size.PlatformDefault = False
       TabOrder = 2
       object LvClientes: TListView
@@ -861,25 +861,37 @@ object frmClientes: TfrmClientes
         HeaderAppearanceClassName = 'TListHeaderObjects'
         FooterAppearanceClassName = 'TListHeaderObjects'
         Align = Client
-        Size.Width = 340.000000000000000000
-        Size.Height = 296.000000000000000000
+        Size.Width = 383.000000000000000000
+        Size.Height = 204.000000000000000000
         Size.PlatformDefault = False
         TabOrder = 0
-        ItemAppearance.ItemHeight = 35
-        ItemAppearanceObjects.ItemObjects.Text.Font.Size = 11.000000000000000000
-        ItemAppearanceObjects.ItemObjects.Text.TextVertAlign = Trailing
-        ItemAppearanceObjects.ItemObjects.Text.Width = 276.000000000000000000
-        ItemAppearanceObjects.ItemObjects.Text.Height = 20.000000000000000000
+        ItemAppearance.ItemHeight = 30
+        ItemAppearance.ItemEditHeight = 30
+        ItemAppearance.HeaderHeight = 1
+        ItemAppearance.FooterHeight = 1
+        ItemAppearanceObjects.ItemObjects.Text.Font.Size = 10.000000000000000000
+        ItemAppearanceObjects.ItemObjects.Text.TextVertAlign = Leading
+        ItemAppearanceObjects.ItemObjects.Text.WordWrap = True
+        ItemAppearanceObjects.ItemObjects.Text.Width = 360.000000000000000000
+        ItemAppearanceObjects.ItemObjects.Text.Height = 15.000000000000000000
+        ItemAppearanceObjects.ItemObjects.Text.Align = Trailing
+        ItemAppearanceObjects.ItemObjects.Text.PlaceOffset.X = 1.000000000000000000
         ItemAppearanceObjects.ItemObjects.Accessory.Width = 38.000000000000000000
         ItemAppearanceObjects.ItemObjects.Accessory.Height = 30.000000000000000000
-        ItemAppearanceObjects.ItemObjects.Accessory.PlaceOffset.X = -8.000000000000000000
-        ItemAppearanceObjects.ItemObjects.Detail.Font.Size = 10.000000000000000000
+        ItemAppearanceObjects.ItemObjects.Accessory.Visible = False
+        ItemAppearanceObjects.ItemObjects.Accessory.PlaceOffset.Y = -3.000000000000000000
+        ItemAppearanceObjects.ItemObjects.Detail.Font.Size = 9.000000000000000000
         ItemAppearanceObjects.ItemObjects.Detail.TextAlign = Leading
-        ItemAppearanceObjects.ItemObjects.Detail.Width = 275.000000000000000000
+        ItemAppearanceObjects.ItemObjects.Detail.TextVertAlign = Leading
+        ItemAppearanceObjects.ItemObjects.Detail.Width = 360.000000000000000000
         ItemAppearanceObjects.ItemObjects.Detail.Height = 15.000000000000000000
         ItemAppearanceObjects.ItemObjects.Detail.Align = Leading
         ItemAppearanceObjects.ItemObjects.Detail.PlaceOffset.X = 1.000000000000000000
-        ItemAppearanceObjects.ItemObjects.Detail.PlaceOffset.Y = 20.000000000000000000
+        ItemAppearanceObjects.ItemObjects.Detail.PlaceOffset.Y = 15.000000000000000000
+        ItemAppearanceObjects.HeaderObjects.Text.Width = 330.000000000000000000
+        ItemAppearanceObjects.HeaderObjects.Text.Visible = False
+        ItemAppearanceObjects.FooterObjects.Text.Visible = False
+        StyleLookup = 'LvClientesStyle1'
         OnItemClick = LvClientesItemClick
       end
     end
@@ -890,9 +902,9 @@ object frmClientes: TfrmClientes
       Margins.Top = 10.000000000000000000
       Margins.Right = 10.000000000000000000
       Position.X = 10.000000000000000000
-      Position.Y = 106.000000000000000000
-      Size.Width = 340.000000000000000000
-      Size.Height = 96.000000000000000000
+      Position.Y = 152.000000000000000000
+      Size.Width = 383.000000000000000000
+      Size.Height = 142.000000000000000000
       Size.PlatformDefault = False
       Stroke.Kind = None
       XRadius = 20.000000000000000000
@@ -900,7 +912,7 @@ object frmClientes: TfrmClientes
       object LbBuscar: TLabel
         StyledSettings = []
         Position.X = 18.000000000000000000
-        Position.Y = 4.000000000000000000
+        Position.Y = 8.000000000000000000
         Size.Width = 90.000000000000000000
         Size.Height = 16.000000000000000000
         Size.PlatformDefault = False
@@ -911,7 +923,7 @@ object frmClientes: TfrmClientes
       object EdBuscar: TEdit
         Touch.InteractiveGestures = [LongTap, DoubleTap]
         Position.X = 18.000000000000000000
-        Position.Y = 20.799999237060550000
+        Position.Y = 30.000000000000000000
         Size.Width = 288.750000000000000000
         Size.Height = 32.000000000000000000
         Size.PlatformDefault = False
@@ -925,8 +937,31 @@ object frmClientes: TfrmClientes
           'C'#243'digo')
         ItemIndex = 0
         Position.X = 18.000000000000000000
-        Position.Y = 59.200000762939450000
+        Position.Y = 94.000000000000000000
         Size.Width = 222.000000000000000000
+        Size.Height = 32.000000000000000000
+        Size.PlatformDefault = False
+      end
+      object LbMesAno: TLabel
+        StyledSettings = []
+        Position.X = 149.000000000000000000
+        Position.Y = 74.000000000000000000
+        Size.Width = 210.000000000000000000
+        Size.Height = 16.000000000000000000
+        Size.PlatformDefault = False
+        TextSettings.Font.Size = 11.000000000000000000
+        TextSettings.FontColor = xFF6B7280
+        TextSettings.WordWrap = False
+        Text = 'Clientes n'#227'o atendidos desde'
+      end
+      object CbMesAno: TComboBox
+        Touch.InteractiveGestures = [LongTap, DoubleTap]
+        Items.Strings = (
+          '-')
+        ItemIndex = 0
+        Position.X = 152.000000000000000000
+        Position.Y = 94.000000000000000000
+        Size.Width = 96.000000000000000000
         Size.Height = 32.000000000000000000
         Size.PlatformDefault = False
       end
@@ -1648,11 +1683,23 @@ object frmClientes: TfrmClientes
             FileName = 'C:\Tomasi Sistemas\WorbyRepres\telas\lupa.png'
           end>
         Position.X = 277.000000000000000000
-        Position.Y = 61.000000000000000000
+        Position.Y = 94.000000000000000000
         Size.Width = 30.000000000000000000
         Size.Height = 30.000000000000000000
         Size.PlatformDefault = False
         OnClick = BtnBuscarClick
+      end
+      object Label1: TLabel
+        StyledSettings = []
+        Position.X = 18.000000000000000000
+        Position.Y = 74.000000000000000000
+        Size.Width = 23.000000000000000000
+        Size.Height = 16.000000000000000000
+        Size.PlatformDefault = False
+        TextSettings.Font.Size = 11.000000000000000000
+        TextSettings.FontColor = xFF6B7280
+        Text = 'Por'
+        TabOrder = 0
       end
     end
   end

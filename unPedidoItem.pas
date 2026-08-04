@@ -1110,6 +1110,7 @@ begin
         ThumbProduto.Fill.Kind := TBrushKind.Bitmap;
         ThumbProduto.Fill.Bitmap.WrapMode := TWrapMode.TileStretch;
         ThumbProduto.Fill.Bitmap.Bitmap.LoadFromStream(LStream);
+        ReduzirBitmapParaMaximo(ThumbProduto.Fill.Bitmap.Bitmap, 384, 384);
       except
         ThumbProduto.Fill.Kind := TBrushKind.Solid;
       end;

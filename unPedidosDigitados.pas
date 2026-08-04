@@ -103,7 +103,7 @@ implementation
 {$R *.fmx}
 
 uses
-  unDMApp, unPedido, unFuncoes, unPrincipal
+  unDMApp, unPedido, unFuncoes, unPrincipal, unAndroidComboFix
 {$IFDEF ANDROID}
   , Androidapi.Helpers
   , Androidapi.JNI.JavaTypes
@@ -124,20 +124,15 @@ var
 begin
   LFile := TJFile.JavaClass.init(StringToJString(AFileName));
 
-  LAuthority := TAndroidHelper.Context.getPackageName.concat(StringToJString('.provider'));
+  LAuthority := TAndroidHelper.Context.getPackageName.concat(StringToJString('.fileprovider'));
   try
     Result := TJcontent_FileProvider.JavaClass.getUriForFile(TAndroidHelper.Context, LAuthority, LFile);
     Exit;
   except
   end;
 
-  LAuthority := TAndroidHelper.Context.getPackageName.concat(StringToJString('.fileprovider'));
-  try
-    Result := TJcontent_FileProvider.JavaClass.getUriForFile(TAndroidHelper.Context, LAuthority, LFile);
-    Exit;
-  except
-    Result := TJnet_Uri.JavaClass.parse(StringToJString('file://' + AFileName));
-  end;
+  LAuthority := TAndroidHelper.Context.getPackageName.concat(StringToJString('.provider'));
+  Result := TJcontent_FileProvider.JavaClass.getUriForFile(TAndroidHelper.Context, LAuthority, LFile);
 end;
 {$ENDIF}
 
@@ -349,6 +344,7 @@ begin
 
   CbStatusPedidos := TComboBox.Create(Self);
   CbStatusPedidos.Parent := CardBusca;
+  UseAndroidSafeComboPicker([CbStatusPedidos]);
   LMesAtual := FormatDateTime('mm/yyyy', Date);
   if CbStatusPedidos.Items.IndexOf(LMesAtual) < 0 then
     CbStatusPedidos.Items.Add(LMesAtual);
@@ -433,91 +429,66 @@ end;
 
 procedure TfrmPedidosDigitados.CarregarMesesAsync;
 var
-  LCodRepresentante: Integer;
+  Q: TFDQuery;
+  LMeses: TStringList;
+  LMes: string;
+  LMesSelecionado: string;
+  LIndex: Integer;
+  LDt: TDateTime;
+  I: Integer;
 begin
   EnsureFiltroCabecalho;
-
-  LCodRepresentante := 0;
-  if Assigned(frmPrincipal) then
-    LCodRepresentante := frmPrincipal.id_representante;
-  if LCodRepresentante <= 0 then
+  if not Assigned(CbStatusPedidos) then
     Exit;
 
-  TThread.CreateAnonymousThread(
-    procedure
-    var
-      LMeses: TJSONArray;
-      LJsonText: string;
+  LMesSelecionado := Trim(CbStatusPedidos.Text);
+  if LMesSelecionado = '' then
+    LMesSelecionado := FormatDateTime('mm/yyyy', Date);
+
+  LMeses := TStringList.Create;
+  Q := TFDQuery.Create(nil);
+  try
+    for I := -6 to 6 do
+      LMeses.Add(FormatDateTime('mm/yyyy', IncMonth(Date, I)));
+
+    Q.Connection := dmApp.FDConnection;
+    Q.SQL.Text :=
+      'select created_at as dt_ref ' +
+      'from outbound_pedido ' +
+      'where status in (''PENDENTE'', ''ERRO'') ' +
+      '  and coalesce(created_at, '''') <> '''' ' +
+      'order by created_at desc';
+    Q.Open;
+    while not Q.Eof do
     begin
-      LJsonText := '';
-      try
-        TMonitor.Enter(dmApp);
-        try
-          LMeses := dmApp.GetMesesDashboard(LCodRepresentante);
-          try
-            LJsonText := LMeses.ToJSON;
-          finally
-            LMeses.Free;
-          end;
-        finally
-          TMonitor.Exit(dmApp);
-        end;
-      except
-        LJsonText := '';
+      LDt := DataFiltroPedido(Q.FieldByName('dt_ref').AsString);
+      if LDt > 0 then
+      begin
+        LMes := FormatDateTime('mm/yyyy', LDt);
+        if LMeses.IndexOf(LMes) < 0 then
+          LMeses.Add(LMes);
       end;
+      Q.Next;
+    end;
 
-      TThread.Queue(nil,
-        procedure
-        var
-          LJsonValue: TJSONValue;
-          LArray: TJSONArray;
-          LValue: TJSONValue;
-          LObj: TJSONObject;
-          LMes: string;
-          LMesSelecionado: string;
-          LIndex: Integer;
-        begin
-          if (csDestroying in ComponentState) or not Assigned(CbStatusPedidos) then
-            Exit;
+    FAtualizandoFiltros := True;
+    try
+      CbStatusPedidos.Items.Clear;
+      for LMes in LMeses do
+        CbStatusPedidos.Items.Add(LMes);
 
-          LJsonValue := TJSONObject.ParseJSONValue(LJsonText);
-          try
-            if not (LJsonValue is TJSONArray) then
-              Exit;
-
-            LArray := TJSONArray(LJsonValue);
-            LMesSelecionado := Trim(CbStatusPedidos.Text);
-            FAtualizandoFiltros := True;
-            try
-              for LValue in LArray do
-              begin
-                LMes := '';
-                if LValue is TJSONObject then
-                begin
-                  LObj := TJSONObject(LValue);
-                  if Assigned(LObj.GetValue('mes')) then
-                    LMes := Trim(LObj.GetValue('mes').Value);
-                end
-                else if Assigned(LValue) then
-                  LMes := Trim(LValue.Value);
-
-                if (LMes <> '') and (CbStatusPedidos.Items.IndexOf(LMes) < 0) then
-                  CbStatusPedidos.Items.Add(LMes);
-              end;
-
-              LIndex := CbStatusPedidos.Items.IndexOf(LMesSelecionado);
-              if LIndex < 0 then
-                LIndex := 0;
-              CbStatusPedidos.ItemIndex := LIndex;
-              AtualizarDiasFiltro;
-            finally
-              FAtualizandoFiltros := False;
-            end;
-          finally
-            LJsonValue.Free;
-          end;
-        end);
-    end).Start;
+      LIndex := CbStatusPedidos.Items.IndexOf(LMesSelecionado);
+      if LIndex < 0 then
+        LIndex := 0;
+      CbStatusPedidos.ItemIndex := LIndex;
+      AtualizarDiasFiltro;
+    finally
+      FAtualizandoFiltros := False;
+    end;
+  finally
+    Q.Free;
+    LMeses.Free;
+  end;
 end;
 procedure TfrmPedidosDigitados.AtualizarResumoPedidos(ATotal: Double; ADescSoma: Double; AQtd: Integer);
 var

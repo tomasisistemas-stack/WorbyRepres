@@ -29,6 +29,7 @@ type
     function GetTabelaCols(const ATabela: string): TArray<string>;
     function FindCampo(const ACols: TArray<string>; const ACandidatos: array of string): string;
   public
+    CodFopFiltro: Integer;
   end;
 
 var
@@ -104,9 +105,20 @@ begin
   LQuery := TFDQuery.Create(nil);
   try
     LQuery.Connection := dmApp.FDConnection;
-    LQuery.SQL.Text := Format('select %s as codigo, %s as nome from prazo order by %s', [
-      LCampoCodigo, LCampoNome, LCampoNome
-    ]);
+    if CodFopFiltro > 0 then
+    begin
+      LQuery.SQL.Text := Format(
+        'select p.%s as codigo, p.%s as nome from prazo p ' +
+        'inner join fop_prazo fp on fp.id_prazo = p.%s ' +
+        'where fp.cod_fop = :p0 order by coalesce(fp.padrao, ''N'') desc, p.%s',
+        [LCampoCodigo, LCampoNome, LCampoCodigo, LCampoNome]
+      );
+      LQuery.ParamByName('p0').AsInteger := CodFopFiltro;
+    end
+    else
+      LQuery.SQL.Text := Format('select %s as codigo, %s as nome from prazo order by %s', [
+        LCampoCodigo, LCampoNome, LCampoNome
+      ]);
     LQuery.Open;
 
     LvPrazos.Items.Clear;
@@ -130,8 +142,8 @@ end;
 
 procedure TfrmPrazoPgto.FormShow(Sender: TObject);
 begin
-    OnClose := FormClose;
-Listar;
+  OnClose := FormClose;
+  Listar;
 end;
 
 procedure TfrmPrazoPgto.LvPrazosItemClick(const Sender: TObject; const AItem: TListViewItem);

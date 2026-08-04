@@ -51,6 +51,7 @@ type
     procedure MenuPedidosEnviadosClick(Sender: TObject);
   private
     FContentScroll: TVertScrollBox;
+    FLbVersao: TLabel;
     FUsuarioLogin: string;
     FQueueLogText: string;
     FQueueDoneMsg: string;
@@ -87,6 +88,7 @@ type
     procedure SolicitarLiberacaoSegundoPlano;
     {$ENDIF}
     procedure AtualizarCabecalho;
+    procedure EnsureVersionLabel;
     procedure EnsureContentScroll;
     procedure SincronizarTudo;
     procedure EnsureSyncForm;
@@ -180,6 +182,24 @@ begin
 end;
 {$ENDIF}
 
+procedure TfrmPrincipal.EnsureVersionLabel;
+begin
+  if not Assigned(FLbVersao) then
+  begin
+    FLbVersao := TLabel.Create(Self);
+    FLbVersao.Parent := lbottom;
+    FLbVersao.Align := TAlignLayout.None;
+    FLbVersao.StyledSettings := [];
+    FLbVersao.TextSettings.Font.Size := 11;
+    FLbVersao.TextSettings.FontColor := $FF6B7280;
+    FLbVersao.TextSettings.HorzAlign := TTextAlign.Leading;
+    FLbVersao.TextSettings.VertAlign := TTextAlign.Center;
+    FLbVersao.HitTest := False;
+  end;
+  FLbVersao.Text := 'Versao ' + AppVersionName;
+  FLbVersao.Visible := True;
+  FLbVersao.BringToFront;
+end;
 procedure TfrmPrincipal.AtualizarCabecalho;
 begin
   LbUsuario.Text := 'Usuario: ' + FUsuarioLogin;
@@ -318,6 +338,7 @@ begin
   if not Assigned(frmPedido) then
     Application.CreateForm(TfrmPedido, frmPedido);
   frmPedido.AtualizarOutboundPedido;
+  frmPedido.PrepararNovoPedido;
   EnsurePedidoForm;
   frmClientes.Show;
 end;
@@ -528,8 +549,8 @@ begin
     try
       if not LerFuncionarioLocal(LFuncionario) then
       begin
-        dmApp.SyncTable('representante', id_representante.ToString, 1);
-        LerFuncionarioLocal(LFuncionario);
+        // API desativada no principal: nao sincroniza representante aqui.
+        LFuncionario := '';
       end;
 
       if LFuncionario <> '' then
@@ -631,8 +652,7 @@ begin
       LogGPSApp('ApplicationEvent WillBecomeForeground');
       QueueRecoverAndroidSurface;
       StopForegroundKeepAliveIntent;
-      if CGpsServiceEnabled then
-        EnviarGeoPendentesAsync;
+      // API desativada no principal: envio de pendentes fica fora desta tela.
       Result := True;
     end;
     TApplicationEvent.EnteredBackground:
@@ -709,26 +729,8 @@ end;
 
 procedure TfrmPrincipal.EnviarGeoPendentesAsync;
 begin
-  if FGeoSendBusy then
-    Exit;
-
-  FGeoSendBusy := True;
-  TThread.CreateAnonymousThread(
-    procedure
-    begin
-      try
-        try
-          LogGPSApp('EnviarGeoPendentes begin');
-          dmApp.EnviarPendentesBackground;
-          LogGPSApp('EnviarGeoPendentes end');
-        except
-          on E: Exception do
-            LogGPSApp('EnviarGeoPendentes erro: ' + E.ClassName + ' - ' + E.Message);
-        end;
-      finally
-        FGeoSendBusy := False;
-      end;
-    end).Start;
+  // API desativada no principal: nao envia geolocalizacao/visitas em background aqui.
+  FGeoSendBusy := False;
 end;
 
 procedure TfrmPrincipal.SolicitarLiberacaoSegundoPlano;
@@ -898,7 +900,6 @@ end;
 procedure TfrmPrincipal.LocationPermissionRationale(Sender: TObject; const APermissions: TClassicStringDynArray;
   const APostRationaleProc: TProc);
 begin
-  ShowMessage('A permissao de localizacao e necessaria para rastrear o representante.');
   APostRationaleProc;
 end;
 
@@ -993,6 +994,8 @@ begin
   lySair.Width := 64;
   lySair.Height := lbottom.Height;
   rSair.Height := lySair.Height;
+  EnsureVersionLabel;
+  FLbVersao.SetBounds(12, (lbottom.Height - 18) / 2, Max(80, lbottom.Width - 156), 18);
   lySaidas.Align := TAlignLayout.MostRight;
   lySaidas.Width := 64;
   lySaidas.Height := lbottom.Height;
@@ -1108,64 +1111,8 @@ end;
 
 procedure TfrmPrincipal.SincronizarTudo;
 begin
-  if id_representante <= 0 then
-  begin
-    ShowMessage('Representante invalido para sincronizacao.');
-    Exit;
-  end;
-
-  MemoLog.Lines.Clear;
-  ProgressBarSync.Min := 0;
-  ProgressBarSync.Max := 1;
-  ProgressBarSync.Value := 0;
-  LbProgresso.Text := 'Sincronizando dados...';
-
-  TThread.CreateAnonymousThread(
-    procedure
-    var
-      LCount: Integer;
-      LMsg: string;
-      procedure QueueLog(const AText: string);
-      begin
-        FQueueLogText := AText;
-        TThread.Queue(nil, DoQueueLog);
-      end;
-    begin
-      try
-        dmApp.OnSyncProgress := SyncProgressHandler;
-        try
-          dmApp.ClearSyncData;
-          QueueLog('Banco local limpo.');
-
-          LCount := 0;
-          LCount := LCount + dmApp.SyncTable('representante', id_representante.ToString, 0);
-          LCount := LCount + dmApp.SyncTable('cliente', id_representante.ToString, 0);
-          LCount := LCount + dmApp.SyncTable('vendas1', id_representante.ToString, 0);
-          LCount := LCount + dmApp.SyncTable('vendas2', id_representante.ToString, 0);
-          LCount := LCount + dmApp.SyncTable('produto_representante', id_representante.ToString, 0);
-          LCount := LCount + dmApp.SyncTable('grupo_representante', id_representante.ToString, 0);
-          LCount := LCount + dmApp.SyncTable('produto_representante_inativos', id_representante.ToString, 0);
-          LCount := LCount + dmApp.SyncTable('prazo_representante', id_representante.ToString, 0);
-          LCount := LCount + dmApp.SyncTable('produto', '', 0);
-          LCount := LCount + dmApp.SyncTable('subcategoria', '', 0);
-          LCount := LCount + dmApp.SyncTable('fop', '', 0);
-          LCount := LCount + dmApp.SyncTable('prazo', '', 0);
-          LCount := LCount + dmApp.SyncTable('cidades', '', 0);
-          LMsg := 'Sincronizacao total: ' + LCount.ToString + ' registro(s)';
-
-          FQueueDoneMsg := LMsg;
-          TThread.Queue(nil, DoQueueDone);
-        finally
-          dmApp.OnSyncProgress := nil;
-        end;
-      except
-        on E: Exception do
-        begin
-          FQueueErrMsg := E.Message;
-          TThread.Queue(nil, DoQueueError);
-        end;
-      end;
-    end).Start;
+  // API desativada no principal: sincronizacao deve ocorrer pela tela unSync.
+  ShowMessage('Sincronizacao disponivel apenas pela tela Sincronizar.');
 end;
 
 procedure TfrmPrincipal.SyncProgressHandler(const ATable: string; AInserted, ATotal: Integer; AIsNewTable: Boolean);
@@ -1184,10 +1131,7 @@ begin
   FQueueSyncTotal := LTotal;
   FQueueSyncIsNewTable := LIsNewTable;
 
-  if SameText(LTable, 'cliente') then
-    TThread.Synchronize(nil, DoQueueSyncProgress)
-  else
-    TThread.Queue(nil, DoQueueSyncProgress);
+  TThread.Queue(nil, DoQueueSyncProgress);
 end;
 
 procedure TfrmPrincipal.DoQueueSyncProgress;

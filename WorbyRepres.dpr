@@ -32,19 +32,15 @@ begin
   Application.CreateForm(TdmApp, dmApp);
   Application.CreateForm(TfrmLogin, frmLogin);
   Application.CreateForm(TfrmPrincipal, frmPrincipal);
-  Application.CreateForm(TfrmSync, frmSync);
   Application.CreateForm(TfrmClientes, frmClientes);
-  Application.CreateForm(TfrmClienteDetalhe, frmClienteDetalhe);
   Application.CreateForm(TfrmPedido, frmPedido);
   Application.CreateForm(TfrmPedidoItem, frmPedidoItem);
   Application.CreateForm(TfrmPedidosDigitados, frmPedidosDigitados);
   Application.CreateForm(TfrmFormaPgto, frmFormaPgto);
   Application.CreateForm(TfrmPrazoPgto, frmPrazoPgto);
   Application.CreateForm(TfrmPedidosEnviados, frmPedidosEnviados);
-  Application.CreateForm(TfrmClienteCadastro, frmClienteCadastro);
+  Application.CreateForm(TfrmClienteDetalhe, frmClienteDetalhe);
   Application.CreateForm(TfrmCidadeBusca, frmCidadeBusca);
-  Application.CreateForm(TfrmOffline, frmOffline);
-  Application.CreateForm(TfrmDashBoard, frmDashBoard);
   Application.Run;
 
 end.

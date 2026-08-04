@@ -40,8 +40,11 @@ type
     procedure FormShow(Sender: TObject);
     procedure FormResize(Sender: TObject);
     procedure imSairClick(Sender: TObject);
+    procedure CbBaseUrlChange(Sender: TObject);
   private
     FAutoSessionChecked: Boolean;
+    FLbVersao: TLabel;
+    procedure EnsureVersionLabel;
     procedure AtualizarStatus(const AText: string; AError: Boolean = False);
     function BaseUrlSelecionada: string;
     function RotuloParaApiUrl(const ARotuloOuUrl: string): string;
@@ -53,6 +56,7 @@ type
     function HasLocalData: Boolean;
     function GetCachedUser(const ALogin: string): TJSONObject;
     function GetSavedPassword: string;
+    function SessionBaseMatchesSelectedBase: Boolean;
     function IsManualLogoutPending: Boolean;
   public
   end;
@@ -72,18 +76,33 @@ uses
   unPrincipal,
   unPedido,
   unPedidoItem,
-  unSync,
   unClientes,
-  unClienteDetalhe,
   unPedidosDigitados,
   unPedidosEnviados,
   unFormaPgto,
   unPrazoPgto,
   unClienteCadastro,
   unCidadeBusca,
-  unOffline,
-  unDashBoard;
+  unAndroidComboFix;
 
+procedure TfrmLogin.EnsureVersionLabel;
+begin
+  if not Assigned(FLbVersao) then
+  begin
+    FLbVersao := TLabel.Create(Self);
+    FLbVersao.Parent := lbottom;
+    FLbVersao.Align := TAlignLayout.None;
+    FLbVersao.StyledSettings := [];
+    FLbVersao.TextSettings.Font.Size := 11;
+    FLbVersao.TextSettings.FontColor := $FF6B7280;
+    FLbVersao.TextSettings.HorzAlign := TTextAlign.Leading;
+    FLbVersao.TextSettings.VertAlign := TTextAlign.Center;
+    FLbVersao.HitTest := False;
+  end;
+  FLbVersao.Text := 'Versao ' + AppVersionName;
+  FLbVersao.Visible := True;
+  FLbVersao.BringToFront;
+end;
 procedure TfrmLogin.AtualizarStatus(const AText: string; AError: Boolean);
 begin
   LbStatus.Text := AText;
@@ -134,12 +153,8 @@ procedure TfrmLogin.EnsurePrincipalForm;
 begin
   if not Assigned(frmPrincipal) then
     Application.CreateForm(TfrmPrincipal, frmPrincipal);
-  if not Assigned(frmSync) then
-    Application.CreateForm(TfrmSync, frmSync);
   if not Assigned(frmClientes) then
     Application.CreateForm(TfrmClientes, frmClientes);
-  if not Assigned(frmClienteDetalhe) then
-    Application.CreateForm(TfrmClienteDetalhe, frmClienteDetalhe);
   if not Assigned(frmPedido) then
     Application.CreateForm(TfrmPedido, frmPedido);
   if not Assigned(frmPedidoItem) then
@@ -156,10 +171,6 @@ begin
     Application.CreateForm(TfrmClienteCadastro, frmClienteCadastro);
   if not Assigned(frmCidadeBusca) then
     Application.CreateForm(TfrmCidadeBusca, frmCidadeBusca);
-  if not Assigned(frmOffline) then
-    Application.CreateForm(TfrmOffline, frmOffline);
-  if not Assigned(frmDashBoard) then
-    Application.CreateForm(TfrmDashBoard, frmDashBoard);
 end;
 
 procedure TfrmLogin.MostrarPrincipalOuRestaurar;
@@ -190,18 +201,22 @@ begin
       end;
       dmApp.ClearAppState(LScreen);
     end
-    else if SameText(LScreen, 'sync') then
-    begin
-      if not Assigned(frmSync) then
-        Application.CreateForm(TfrmSync, frmSync);
-      frmSync.Show;
-      Hide;
-      Exit;
-    end;
+    else
+      dmApp.ClearAppState(LScreen);
   end;
 
   Hide;
 end;
+procedure TfrmLogin.CbBaseUrlChange(Sender: TObject);
+begin
+  if not SessionBaseMatchesSelectedBase then
+  begin
+    EdLogin.Text := '';
+    EdSenha.Text := '';
+    AtualizarStatus('');
+  end;
+end;
+
 procedure TfrmLogin.BtnEntrarClick(Sender: TObject);
 var
   LResponse: TJSONObject;
@@ -286,14 +301,26 @@ var
   LCached: TJSONObject;
   LLogin: string;
 begin
+  UseAndroidSafeComboPicker([CbBaseUrl]);
+  CbBaseUrl.OnChange := nil;
   CbBaseUrl.Items.Clear;
   CbBaseUrl.Items.Add('PLASFAN');
+  LAtual := ApiUrlParaRotulo(dmApp.ApiBaseUrl);
   CbBaseUrl.Items.Add('FILHO DO CRIADOR');
   CbBaseUrl.ItemIndex := CbBaseUrl.Items.IndexOf(LAtual);
   if CbBaseUrl.ItemIndex < 0 then
     CbBaseUrl.ItemIndex := 0;
-  EdLogin.Text := dmApp.GetSessionLogin;
-  EdSenha.Text := GetSavedPassword;
+  CbBaseUrl.OnChange := CbBaseUrlChange;
+  if SessionBaseMatchesSelectedBase then
+  begin
+    EdLogin.Text := dmApp.GetSessionLogin;
+    EdSenha.Text := GetSavedPassword;
+  end
+  else
+  begin
+    EdLogin.Text := '';
+    EdSenha.Text := '';
+  end;
   AtualizarStatus('');
   ApplyOrientationLayout;
 
@@ -382,6 +409,8 @@ begin
   lySair.Width := 64;
   lySair.Height := lbottom.Height;
   rSair.Height := lySair.Height;
+  EnsureVersionLabel;
+  FLbVersao.SetBounds(12, (lbottom.Height - 18) / 2, Max(80, lbottom.Width - 92), 18);
 
   if LIsLandscape then
   begin
@@ -645,10 +674,15 @@ begin
   LQuery := TFDQuery.Create(nil);
   try
     LQuery.Connection := dmApp.FDConnection;
-    LQuery.SQL.Text := 'select login, user_json from api_session where id = 1';
+    LQuery.SQL.Text := 'select base_url, login, user_json from api_session where id = 1';
     LQuery.Open;
+    if LQuery.IsEmpty then
+      Exit;
+
     if not LQuery.IsEmpty then
     begin
+      if not SameText(Trim(LQuery.FieldByName('base_url').AsString), Trim(BaseUrlSelecionada)) then
+        Exit;
       LLogin := Trim(LQuery.FieldByName('login').AsString);
       LJson := Trim(LQuery.FieldByName('user_json').AsString);
     end;
@@ -703,11 +737,27 @@ begin
     LQuery.Free;
   end;
 end;
+function TfrmLogin.SessionBaseMatchesSelectedBase: Boolean;
+var
+  LBaseSalva: string;
+begin
+  Result := False;
+  try
+    if Assigned(dmApp) and dmApp.FDConnection.Connected then
+    begin
+      LBaseSalva := Trim(dmApp.FDConnection.ExecSQLScalar('select coalesce(base_url, '''') from api_session where id = 1'));
+      Result := (LBaseSalva <> '') and SameText(LBaseSalva, Trim(BaseUrlSelecionada));
+    end;
+  except
+    Result := False;
+  end;
+end;
+
 function TfrmLogin.GetSavedPassword: string;
 begin
   Result := '';
   try
-    if Assigned(dmApp) and dmApp.FDConnection.Connected then
+    if Assigned(dmApp) and dmApp.FDConnection.Connected and SessionBaseMatchesSelectedBase then
       Result := Trim(dmApp.FDConnection.ExecSQLScalar('select senha from api_session where id = 1'));
   except
     // ignore if column missing or any error
