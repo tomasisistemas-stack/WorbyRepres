@@ -1,25 +1,25 @@
-# WorbyRepApp
+# WorbyRep SQLite
 
-Aplicativo FireMonkey para Windows e Android, usando o SQLite `db.sqllite` e a API Horse criada em `WorbyRepRest`.
+Arquivo principal: `db.sqllite`
 
-## Fluxo
+Objetivo:
+- armazenar as tabelas sincronizadas (espelho do PostgreSQL)
+- guardar sessao/login
+- manter fila local de pedidos a enviar para `POST /api/pedido`
+- registrar requests/responses da integracao
 
-1. Login em `POST /login`
-2. Sincronizacao de tabelas via `POST /api/list`
-3. Gravacao direta nas tabelas espelhadas no SQLite
-4. Montagem de pedidos offline
-5. Envio de pedidos via `POST /api/pedido`
+Tabelas de suporte:
+- `app_config`
+- `api_session`
+- `sync_table_state`
+- `outbound_pedido`
+- `outbound_pedido_item`
+- `request_log`
 
-## Arquivos principais
-
-- `WorbyRepApp.dpr`
-- `WorbyRepApp.dproj`
-- `unDMApp.pas`
-- `unLogin.pas` / `unLogin.fmx`
-- `unPrincipal.pas` / `unPrincipal.fmx`
-
-## Observacoes
-
-- No Windows, o app usa `..\db.sqllite` em relacao ao executavel.
-- No Android, o banco e criado em `Documents`.
-- O projeto foi modelado visualmente com top bar escura e navegacao inferior, seguindo a linha do `CanhotoRapidoApp`.
+Fluxo sugerido:
+1. autenticar em `POST /login`
+2. sincronizar tabelas via `POST /api/list`
+3. gravar retorno direto nas tabelas espelhadas
+4. montar pedidos locais em `outbound_pedido` e `outbound_pedido_item`
+5. enviar para `POST /api/pedido`
+6. salvar `numdoc_remote`, `sent_at` e `status`

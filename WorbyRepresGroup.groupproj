@@ -1,0 +1,60 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{71C95D83-9AF9-4960-BA9C-06ECE673049B}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="App\WorbyRepres.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="..\WorbyRepRest\WorbyRepRest.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="Service\ForegroundLocationService.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="WorbyRepres">
+        <MSBuild Projects="App\WorbyRepres.dproj"/>
+    </Target>
+    <Target Name="WorbyRepres:Clean">
+        <MSBuild Projects="App\WorbyRepres.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="WorbyRepres:Make">
+        <MSBuild Projects="App\WorbyRepres.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="WorbyRepRest">
+        <MSBuild Projects="..\WorbyRepRest\WorbyRepRest.dproj"/>
+    </Target>
+    <Target Name="WorbyRepRest:Clean">
+        <MSBuild Projects="..\WorbyRepRest\WorbyRepRest.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="WorbyRepRest:Make">
+        <MSBuild Projects="..\WorbyRepRest\WorbyRepRest.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="ForegroundLocationService">
+        <MSBuild Projects="Service\ForegroundLocationService.dproj"/>
+    </Target>
+    <Target Name="ForegroundLocationService:Clean">
+        <MSBuild Projects="Service\ForegroundLocationService.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="ForegroundLocationService:Make">
+        <MSBuild Projects="Service\ForegroundLocationService.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="WorbyRepres;WorbyRepRest;ForegroundLocationService"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="WorbyRepres:Clean;WorbyRepRest:Clean;ForegroundLocationService:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="WorbyRepres:Make;WorbyRepRest:Make;ForegroundLocationService:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>

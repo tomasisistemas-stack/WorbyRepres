@@ -1,0 +1,12 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<BorlandProject>
+	<Transactions>
+    <Transaction>2026/05/29 14:42:20.000.771,=C:\Users\Claudio\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>2026/05/29 14:43:29.000.788,C:\Users\Claudio\Documents\Embarcadero\Studio\Projects\Unit1.dfm=C:\Tomasi Sistemas\WorbyRepres\Service\ForegroundLocationService.dfm</Transaction>
+    <Transaction>2026/05/29 14:43:29.000.788,C:\Users\Claudio\Documents\Embarcadero\Studio\Projects\Unit1.pas=C:\Tomasi Sistemas\WorbyRepres\Service\ForegroundLocationService.pas</Transaction>
+    <Transaction>2026/05/29 14:43:57.000.088,C:\Tomasi Sistemas\WorbyRepres\Service\ForegroundLocationService.dproj=</Transaction>
+    <Transaction>2026/05/29 14:44:36.000.698,C:\Users\Claudio\Documents\Embarcadero\Studio\Projects\Project1.dproj=C:\Tomasi Sistemas\WorbyRepres\Service\ForegroundLocationService.dproj</Transaction>
+    <Transaction>2026/05/29 14:44:48.000.435,=C:\Tomasi Sistemas\WorbyRepres\Service\ServiceGeoWorker.pas</Transaction>
+    <Transaction>2026/05/29 14:44:49.000.548,=C:\Tomasi Sistemas\WorbyRepres\Service\ServiceUnit.pas</Transaction>
+  </Transactions>
+</BorlandProject>
