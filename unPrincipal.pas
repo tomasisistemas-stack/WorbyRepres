@@ -7,10 +7,11 @@ uses
   ServiceUnit,
   {$ENDIF}
   System.SysUtils, System.Types, System.UITypes, System.Classes, System.Variants, System.Threading, System.Math,
+  System.DateUtils,
   System.JSON, System.Permissions, FMX.Platform, FMX.Types, FMX.Controls, FMX.Forms, FMX.Graphics, FMX.Dialogs,
   FMX.DialogService,
   FMX.Controls.Presentation, FMX.StdCtrls, FMX.Layouts, FMX.Objects, FMX.Memo,
-  FMX.Memo.Types, FMX.ScrollBox, unFuncoes;
+  FMX.Memo.Types, FMX.ScrollBox, FireDAC.Comp.Client, unFuncoes;
 
 type
   TfrmPrincipal = class(TForm)
@@ -53,6 +54,7 @@ type
     FContentScroll: TVertScrollBox;
     FLbVersao: TLabel;
     FUsuarioLogin: string;
+    FRepresentanteFuncionario: string;
     FQueueLogText: string;
     FQueueDoneMsg: string;
     FQueueErrMsg: string;
@@ -76,6 +78,7 @@ type
     procedure QueueRecoverAndroidSurface;
     procedure DoRecoverAndroidSurface;
     function HasLocationTrackingPermission: Boolean;
+    function RepresentantePermiteVisitas: Boolean;
     function RepresentantePermiteGps: Boolean;
     procedure RequestLocationTrackingPermission;
     procedure LocationPermissionsResult(Sender: TObject; const APermissions: TClassicStringDynArray; const AGrantResults: TClassicPermissionStatusDynArray);
@@ -111,6 +114,7 @@ type
     procedure MenuConfigClick(Sender: TObject);
     procedure MenuSuporteClick(Sender: TObject);
     procedure MenuDashboardClick(Sender: TObject);
+    procedure MenuVisitasClick(Sender: TObject);
     procedure MenuLogoffClick(Sender: TObject);
   public
     id_representante: Integer;
@@ -120,7 +124,10 @@ type
     procedure PauseLocationServiceForSync;
     procedure FinishLocationSyncPause;
     procedure ResumeLocationServiceAfterSync;
+    procedure AtivarGpsTelaVisitas;
     {$ENDIF}
+    procedure RegistrarTelaAtual(const AScreen: string);
+    procedure RestaurarFormulario(const AScreen: string; ARegistroId: Integer = 0);
   end;
 
 var
@@ -133,17 +140,19 @@ implementation
 uses
   unDMApp,
   unClientes,
+  unClienteDetalhe,
   unSync,
   unPedido,
   unPedidoItem,
   unPedidosDigitados,
   unPedidosEnviados,
   unDashBoard,
+  unVisitas,
   unLogin
   {$IFDEF ANDROID}
-  , System.DateUtils, Androidapi.Helpers, Androidapi.JNI.JavaTypes, Androidapi.JNI.Os,
+  , Androidapi.Helpers, Androidapi.JNI.JavaTypes, Androidapi.JNI.Os,
   Androidapi.JNI.GraphicsContentViewText, Androidapi.JNI.App, Androidapi.JNI.Provider,
-  Androidapi.JNI.Net, Androidapi.Log, FireDAC.Comp.Client
+  Androidapi.JNI.Net, Androidapi.Log
   {$ENDIF};
 
 const
@@ -171,7 +180,7 @@ const
 {$IFDEF ANDROID}
 const
   CForegroundKeepAliveEnabled = False;
-  CGpsServiceEnabled = False;
+  CGpsServiceEnabled = True;
 
 procedure LogGPSApp(const AText: string);
 var
@@ -179,6 +188,21 @@ var
 begin
   LText := UTF8String(AText);
   __android_log_write(android_LogPriority.ANDROID_LOG_INFO, 'WorbyRepresGPS', MarshaledAString(LText));
+end;
+
+function CanRunLocationServiceBrasiliaNow: Boolean;
+var
+  LBrasiliaNow: TDateTime;
+  LTime: TTime;
+begin
+  try
+    LBrasiliaNow := IncHour(TTimeZone.Local.ToUniversalTime(Now), -3);
+  except
+    LBrasiliaNow := Now;
+  end;
+
+  LTime := TimeOf(LBrasiliaNow);
+  Result := (LTime >= EncodeTime(7, 30, 0, 0)) and (LTime < EncodeTime(18, 0, 0, 0));
 end;
 {$ENDIF}
 
@@ -214,10 +238,15 @@ var
   LRepresentanteValue: TJSONValue;
   LNomeValue: TJSONValue;
   LLoginValue: TJSONValue;
+  LFuncionarioValue: TJSONValue;
+  LRepresentanteObjValue: TJSONValue;
+  LQuery: TFDQuery;
+  LLocalFuncionario: string;
 begin
   id_representante := 0;
   FRepNome := '';
   FUsuarioLogin := '';
+  FRepresentanteFuncionario := '';
 
   if Assigned(AUser) then
   begin
@@ -251,6 +280,48 @@ begin
         LLoginValue := LUserObj.GetValue('usuario');
       if Assigned(LLoginValue) then
         FUsuarioLogin := LLoginValue.Value;
+
+      LFuncionarioValue := LUserObj.GetValue('funcionario');
+      if not Assigned(LFuncionarioValue) then
+        LFuncionarioValue := AUser.GetValue('funcionario');
+      if (not Assigned(LFuncionarioValue)) then
+      begin
+        LRepresentanteObjValue := AUser.GetValue('representante');
+        if LRepresentanteObjValue is TJSONObject then
+          LFuncionarioValue := TJSONObject(LRepresentanteObjValue).GetValue('funcionario');
+      end;
+      if Assigned(LFuncionarioValue) then
+      begin
+        FRepresentanteFuncionario := Trim(LFuncionarioValue.Value);
+        dmApp.SetAppConfigValue('representante_funcionario', Trim(LFuncionarioValue.Value))
+      end
+      else
+      begin
+        LLocalFuncionario := '';
+        if id_representante > 0 then
+        begin
+          LQuery := TFDQuery.Create(nil);
+          try
+            try
+              LQuery.Connection := dmApp.FDConnection;
+              LQuery.SQL.Text :=
+                'select coalesce(funcionario, '''') as funcionario ' +
+                'from representante where id = :p0 or cod_tablet = :p0 limit 1';
+              LQuery.ParamByName('p0').AsInteger := id_representante;
+              LQuery.Open;
+              if not LQuery.IsEmpty then
+                LLocalFuncionario := Trim(LQuery.FieldByName('funcionario').AsString);
+            except
+              LLocalFuncionario := '';
+            end;
+          finally
+            LQuery.Free;
+          end;
+        end;
+
+        FRepresentanteFuncionario := LLocalFuncionario;
+        dmApp.SetAppConfigValue('representante_funcionario', LLocalFuncionario);
+      end;
     end;
   end;
 
@@ -269,22 +340,32 @@ begin
   if not CGpsServiceEnabled then
   begin
     AtualizarCabecalho;
+    ApplyOrientationLayout;
     Exit;
-  end;
-
-  if RepresentantePermiteGps and Assigned(FLocationStartTimer) then
-  begin
-    FLocationStartTimer.Interval := 1500;
-    FLocationStartTimer.Enabled := True;
   end;
   {$ENDIF}
 
   AtualizarCabecalho;
+  ApplyOrientationLayout;
+  Application.ProcessMessages;
 
+  {$IFDEF ANDROID}
+  if CGpsServiceEnabled then
+  begin
+    if RepresentantePermiteGps then
+    begin
+      EnviarGeoPendentesAsync;
+      AtivarGpsTelaVisitas;
+    end
+    else
+      StopLocationServiceIfBlocked;
+  end;
+  {$ENDIF}
 end;
 
 procedure TfrmPrincipal.BtnConectarClick(Sender: TObject);
 begin
+  RegistrarTelaAtual('sync');
   EnsureSyncForm;
   frmSync.Show;
 end;
@@ -328,6 +409,7 @@ end;
 
 procedure TfrmPrincipal.MenuClientesClick(Sender: TObject);
 begin
+  RegistrarTelaAtual('clientes');
   if not Assigned(frmClientes) then
     Application.CreateForm(TfrmClientes, frmClientes);
   frmClientes.Show;
@@ -335,6 +417,7 @@ end;
 
 procedure TfrmPrincipal.MenuPedidosClick(Sender: TObject);
 begin
+  RegistrarTelaAtual('clientes');
   if not Assigned(frmPedido) then
     Application.CreateForm(TfrmPedido, frmPedido);
   frmPedido.AtualizarOutboundPedido;
@@ -345,6 +428,7 @@ end;
 
 procedure TfrmPrincipal.MenuPedidosDigitadosClick(Sender: TObject);
 begin
+  RegistrarTelaAtual('pedidos_digitados');
   if not Assigned(frmPedido) then
     Application.CreateForm(TfrmPedido, frmPedido);
   frmPedido.AtualizarOutboundPedido;
@@ -355,6 +439,7 @@ end;
 
 procedure TfrmPrincipal.MenuPedidosEnviadosClick(Sender: TObject);
 begin
+  RegistrarTelaAtual('pedidos_enviados');
   if not Assigned(frmPedidosEnviados) then
     Application.CreateForm(TfrmPedidosEnviados, frmPedidosEnviados);
   frmPedidosEnviados.Show;
@@ -363,60 +448,133 @@ end;
 
 procedure TfrmPrincipal.MenuProdutosClick(Sender: TObject);
 begin
+  RegistrarTelaAtual('pedido_item');
   EnsurePedidoItemForm;
   frmPedidoItem.Show;
 end;
 
 procedure TfrmPrincipal.MenuVendasClick(Sender: TObject);
 begin
+  RegistrarTelaAtual('pedido');
   EnsurePedidoForm;
   frmPedido.Show;
 end;
 
 procedure TfrmPrincipal.MenuTitulosClick(Sender: TObject);
 begin
+  RegistrarTelaAtual('pedido_item');
   EnsurePedidoItemForm;
   frmPedidoItem.Show;
 end;
 
 procedure TfrmPrincipal.MenuComissoesClick(Sender: TObject);
 begin
+  RegistrarTelaAtual('sync');
   EnsureSyncForm;
   frmSync.Show;
 end;
 
 procedure TfrmPrincipal.MenuConfigClick(Sender: TObject);
 begin
+  RegistrarTelaAtual('sync');
   EnsureSyncForm;
   frmSync.Show;
 end;
 
 procedure TfrmPrincipal.MenuSuporteClick(Sender: TObject);
 begin
+  RegistrarTelaAtual('sync');
   EnsureSyncForm;
   frmSync.Show;
 end;
 
 procedure TfrmPrincipal.MenuDashboardClick(Sender: TObject);
 begin
+  RegistrarTelaAtual('dashboard');
   if not Assigned(frmDashBoard) then
     Application.CreateForm(TfrmDashBoard, frmDashBoard);
   frmDashBoard.Show;
+end;
+
+procedure TfrmPrincipal.MenuVisitasClick(Sender: TObject);
+begin
+  {$IFDEF ANDROID}
+  if not RepresentantePermiteVisitas then
+    Exit;
+  AtivarGpsTelaVisitas;
+  {$ENDIF}
+
+  RegistrarTelaAtual('visitas');
+  if not Assigned(frmVisitas) then
+    Application.CreateForm(TfrmVisitas, frmVisitas);
+  frmVisitas.Show;
 end;
 
 procedure TfrmPrincipal.MenuLogoffClick(Sender: TObject);
 begin
   try
     dmApp.SetAppConfigValue('login_saida_manual', '1');
+    dmApp.SetAppConfigValue('representante_funcionario', '0');
+    dmApp.SetAppConfigValue('cod_representante', '0');
     dmApp.ClearAppState('');
   except
   end;
+
+  FRepresentanteFuncionario := '';
+  id_representante := 0;
+  {$IFDEF ANDROID}
+  FLocationTrackingRequested := False;
+  if Assigned(FLocationStartTimer) then
+    FLocationStartTimer.Enabled := False;
+  {$ENDIF}
 
   if not Assigned(frmLogin) then
     Application.CreateForm(TfrmLogin, frmLogin);
 
   frmLogin.Show;
   Hide;
+
+  {$IFDEF ANDROID}
+  Application.ProcessMessages;
+  StopLocationServiceIfBlocked;
+  {$ENDIF}
+end;
+
+procedure TfrmPrincipal.RegistrarTelaAtual(const AScreen: string);
+begin
+  try
+    if Assigned(dmApp) then
+      dmApp.SetAppState(AScreen, 0, '');
+  except
+    // A restauração não pode interromper a navegação normal.
+  end;
+end;
+
+procedure TfrmPrincipal.RestaurarFormulario(const AScreen: string; ARegistroId: Integer);
+begin
+  if SameText(AScreen, 'clientes') then
+    MenuClientesClick(Self)
+  else if SameText(AScreen, 'pedidos_digitados') then
+    MenuPedidosDigitadosClick(Self)
+  else if SameText(AScreen, 'pedidos_enviados') then
+    MenuPedidosEnviadosClick(Self)
+  else if SameText(AScreen, 'dashboard') then
+    MenuDashboardClick(Self)
+  else if SameText(AScreen, 'visitas') then
+    MenuVisitasClick(Self)
+  else if SameText(AScreen, 'sync') then
+    BtnConectarClick(Self)
+  else if SameText(AScreen, 'pedido') then
+    MenuVendasClick(Self)
+  else if SameText(AScreen, 'pedido_item') then
+    MenuProdutosClick(Self)
+  else if SameText(AScreen, 'cliente_detalhe') then
+  begin
+    if not Assigned(frmClienteDetalhe) then
+      Application.CreateForm(TfrmClienteDetalhe, frmClienteDetalhe);
+    frmClienteDetalhe.SetCliente('', IntToStr(ARegistroId), '');
+    frmClienteDetalhe.Show;
+  end;
 end;
 
 procedure TfrmPrincipal.EnsureSyncForm;
@@ -450,12 +608,7 @@ begin
     Exit;
   if not RepresentantePermiteGps then exit;
   EnviarGeoPendentesAsync;
-  if (not FLocationStartupAttempted) and Assigned(FLocationStartTimer)  then
-  begin
-    FLocationStartTimer.Enabled := False;
-    FLocationStartTimer.Interval := 2000;
-    FLocationStartTimer.Enabled := True;
-  end;
+  AtivarGpsTelaVisitas;
   {$ENDIF}
 end;
 
@@ -509,10 +662,26 @@ begin
         TJManifest_permission.JavaClass.ACCESS_COARSE_LOCATION) = 0);
 end;
 
-function TfrmPrincipal.RepresentantePermiteGps: Boolean;
+function TfrmPrincipal.RepresentantePermiteVisitas: Boolean;
 var
   LQuery: TFDQuery;
   LFuncionario: string;
+
+  function FuncionarioPermite(const AValue: string): Boolean;
+  var
+    LValue: string;
+    LNumber: Double;
+    LFormat: TFormatSettings;
+  begin
+    LValue := Trim(AValue);
+    Result := SameText(LValue, '1') or SameText(LValue, '4');
+    if Result or (LValue = '') then
+      Exit;
+
+    LFormat := TFormatSettings.Invariant;
+    if TryStrToFloat(StringReplace(LValue, ',', '.', [rfReplaceAll]), LNumber, LFormat) then
+      Result := (Trunc(LNumber) = 1) or (Trunc(LNumber) = 4);
+  end;
 
   function LerFuncionarioLocal(out AFuncionario: string): Boolean;
   begin
@@ -522,7 +691,7 @@ var
     LQuery.Close;
     LQuery.SQL.Text :=
       'select coalesce(funcionario, '''') as funcionario ' +
-      'from representante where id = :p0';
+      'from representante where id = :p0 or cod_tablet = :p0 limit 1';
     LQuery.ParamByName('p0').AsInteger := id_representante;
     LQuery.Open;
 
@@ -533,15 +702,19 @@ var
     end;
   end;
 begin
-  if not CGpsServiceEnabled then
-  begin
-    Result := False;
-    Exit;
-  end;
-
-  Result := True;
+  Result := False;
   if id_representante <= 0 then
     Exit;
+
+  LFuncionario := Trim(FRepresentanteFuncionario);
+
+  if LFuncionario <> '' then
+  begin
+    Result := FuncionarioPermite(LFuncionario);
+    LogGPSApp('RepresentantePermiteVisitas memoria rep=' + id_representante.ToString +
+      ' funcionario=' + LFuncionario + ' permite=' + BoolToStr(Result, True));
+    Exit;
+  end;
 
   LQuery := TFDQuery.Create(nil);
   try
@@ -549,20 +722,33 @@ begin
     try
       if not LerFuncionarioLocal(LFuncionario) then
       begin
-        // API desativada no principal: nao sincroniza representante aqui.
-        LFuncionario := '';
+        // Fallback para quando a tabela representante ainda nao foi sincronizada.
+        try
+          LFuncionario := Trim(dmApp.FDConnection.ExecSQLScalar(
+            'select coalesce(value, '''') from app_config where key = ''representante_funcionario'''));
+        except
+          LFuncionario := '';
+        end;
       end;
 
       if LFuncionario <> '' then
-        Result := not SameText(LFuncionario, '0')
+        Result := FuncionarioPermite(LFuncionario)
       else
         Result := False;
+      LogGPSApp('RepresentantePermiteVisitas local rep=' + id_representante.ToString +
+        ' funcionario=' + LFuncionario + ' permite=' + BoolToStr(Result, True));
     except
       Result := False;
+      LogGPSApp('RepresentantePermiteVisitas erro local rep=' + id_representante.ToString);
     end;
   finally
     LQuery.Free;
   end;
+end;
+
+function TfrmPrincipal.RepresentantePermiteGps: Boolean;
+begin
+  Result := CGpsServiceEnabled and CanRunLocationServiceBrasiliaNow and RepresentantePermiteVisitas;
 
   if not Result then
   begin
@@ -573,9 +759,24 @@ begin
 end;
 
 procedure TfrmPrincipal.StopLocationServiceIfBlocked;
+var
+  LIntent: JIntent;
 begin
   FLocationTrackingRequested := False;
-  LogGPSApp('StopLocationServiceIfBlocked ignorado: servico GPS desativado');
+  if Assigned(frmVisitas) then
+    frmVisitas.DesativarGpsLocal;
+  try
+    LIntent := TJIntent.JavaClass.init;
+    LIntent.setClassName(
+      TAndroidHelper.Context.getPackageName,
+      StringToJString('com.embarcadero.services.ForegroundLocationService'));
+    LIntent.setAction(StringToJString('com.embarcadero.intent.action.DISABLE_LOCATION_TRACKING'));
+    TAndroidHelper.Context.startService(LIntent);
+    LogGPSApp('StopLocationServiceIfBlocked disable action enviada');
+  except
+    on E: Exception do
+      LogGPSApp('StopLocationServiceIfBlocked erro: ' + E.ClassName + ' - ' + E.Message);
+  end;
 end;
 
 procedure TfrmPrincipal.PauseLocationServiceForSync;
@@ -589,6 +790,7 @@ begin
       .apply;
   except
   end;
+  StopLocationServiceIfBlocked;
 end;
 
 procedure TfrmPrincipal.FinishLocationSyncPause;
@@ -629,13 +831,19 @@ begin
   else
   begin
     FLocationTrackingRequested := False;
-    if Assigned(FLocationStartTimer) then
-    begin
-      FLocationStartTimer.Enabled := False;
-      FLocationStartTimer.Interval := 2000;
-      FLocationStartTimer.Enabled := True;
-    end;
+    RequestLocationTrackingPermission;
   end;
+end;
+
+procedure TfrmPrincipal.AtivarGpsTelaVisitas;
+begin
+  LogGPSApp('AtivarGpsTelaVisitas');
+  if not RepresentantePermiteGps then
+  begin
+    StopLocationServiceIfBlocked;
+    Exit;
+  end;
+  ResumeLocationServiceAfterSync;
 end;
 
 function TfrmPrincipal.HandleApplicationEvent(ApplicationEvent: TApplicationEvent; Context: TObject): Boolean;
@@ -828,9 +1036,33 @@ begin
   LogGPSApp('StopForegroundKeepAliveIntent ignorado: servico GPS desativado');
 end;
 procedure TfrmPrincipal.StartLocationServiceIntent;
+var
+  LIntent: JIntent;
 begin
-  FLocationTrackingRequested := False;
-  LogGPSApp('StartLocationServiceIntent ignorado: servico GPS desativado');
+  if (not CGpsServiceEnabled) or (not CanRunLocationServiceBrasiliaNow) then
+  begin
+    FLocationTrackingRequested := False;
+    if CGpsServiceEnabled then
+      LogGPSApp('StartLocationServiceIntent bloqueado por horario Brasilia');
+    Exit;
+  end;
+
+  try
+    LIntent := TJIntent.JavaClass.init;
+    LIntent.setClassName(
+      TAndroidHelper.Context.getPackageName,
+      StringToJString('com.embarcadero.services.ForegroundLocationService'));
+    TAndroidHelper.Context.startService(LIntent);
+    FLocationTrackingRequested := True;
+    LogGPSApp('StartLocationServiceIntent executado sdk=' +
+      TJBuild_VERSION.JavaClass.SDK_INT.ToString);
+  except
+    on E: Exception do
+    begin
+      FLocationTrackingRequested := False;
+      LogGPSApp('StartLocationServiceIntent erro: ' + E.ClassName + ' - ' + E.Message);
+    end;
+  end;
 end;
 
 procedure TfrmPrincipal.RequestLocationTrackingPermission;
@@ -945,6 +1177,7 @@ var
   LMenuW: Single;
   LMenuH: Single;
   LMenuObj: TControl;
+  LShowVisitas: Boolean;
 begin
   if (Width <= 0) or (Height <= 0) then
     Exit;
@@ -960,14 +1193,14 @@ begin
   begin
     TopBar.Height := 72;
     lbottom.Height := 58;
-    LBottomMargin := 44;
+    LBottomMargin := AndroidBottomSafeMargin(LIsLandscape);
     LRightSafe := Max(0, AndroidNavigationInset(True) + 8);
   end
   else
   begin
     TopBar.Height := 96;
     lbottom.Height := 72;
-    LBottomMargin := 44;
+    LBottomMargin := AndroidBottomSafeMargin(LIsLandscape);
     LRightSafe := 0;
   end;
 
@@ -991,9 +1224,13 @@ begin
     lbottom.Position.Y := Height - lbottom.Height - 12;
 
   lySair.Align := TAlignLayout.MostRight;
-  lySair.Width := 64;
+  lySair.Width := 84;
   lySair.Height := lbottom.Height;
   rSair.Height := lySair.Height;
+  imSair.Align := TAlignLayout.None;
+  imSair.SetBounds((lySair.Width - 30) / 2, 3, 30, 30);
+  lbSair.Align := TAlignLayout.None;
+  lbSair.SetBounds(0, 32, lySair.Width, 18);
   EnsureVersionLabel;
   FLbVersao.SetBounds(12, (lbottom.Height - 18) / 2, Max(80, lbottom.Width - 156), 18);
   lySaidas.Align := TAlignLayout.MostRight;
@@ -1020,20 +1257,25 @@ begin
   if LCanSideBySide then
   begin
     LBaseContentW := 420 + LGap + 420;
-    LBaseContentH := 310;
+    LBaseContentH := 438;
   end
   else
   begin
     if LIsTablet then
-      LBaseContentW := Min(520, LScrollW - (LPadX * 2))
+    begin
+      if LIsLandscape then
+        LBaseContentW := Min(560, LScrollW - (LPadX * 2))
+      else
+        LBaseContentW := Min(500, LScrollW - 48);
+    end
     else
       LBaseContentW := Min(350, LScrollW - (LPadX * 2));
     if LBaseContentW < 300 then
       LBaseContentW := Max(260, LScrollW - (LPadX * 2));
     if LIsTablet then
-      LBaseContentH := 156 + LGap + 330 + 16
+      LBaseContentH := 156 + LGap + 438 + 16
     else
-      LBaseContentH := 128 + LGap + 272 + 16;
+      LBaseContentH := 128 + LGap + 380 + 16;
   end;
 
   lyCenter.Align := TAlignLayout.None;
@@ -1042,23 +1284,32 @@ begin
   lyCenter.Scale.X := 1;
   lyCenter.Scale.Y := 1;
   lyCenter.Position.X := Max(LPadX, (LScrollW - LBaseContentW) / 2);
-  lyCenter.Position.Y := 12;
+  if LIsTablet then
+    lyCenter.Position.Y := Max(12, (LScrollH - LBaseContentH) / 2)
+  else
+    lyCenter.Position.Y := 12;
 
   Card.Align := TAlignLayout.None;
   MenuGrid.Align := TAlignLayout.None;
   if LIsTablet then
   begin
-    Card.Width := Min(420, LBaseContentW);
+    if (not LIsLandscape) and (not LCanSideBySide) then
+      Card.Width := Min(460, LBaseContentW)
+    else
+      Card.Width := Min(420, LBaseContentW);
     Card.Height := 148;
-    MenuGrid.Width := Min(420, LBaseContentW);
-    MenuGrid.Height := 330;
+    if (not LIsLandscape) and (not LCanSideBySide) then
+      MenuGrid.Width := Min(460, LBaseContentW)
+    else
+      MenuGrid.Width := Min(420, LBaseContentW);
+    MenuGrid.Height := 438;
   end
   else
   begin
     Card.Width := Min(350, LBaseContentW);
     Card.Height := 128;
     MenuGrid.Width := Min(325, LBaseContentW);
-    MenuGrid.Height := 272;
+    MenuGrid.Height := 380;
   end;
   Card.Scale.X := 1;
   Card.Scale.Y := 1;
@@ -1080,32 +1331,50 @@ begin
     MenuGrid.Position.Y := Card.Height + LGap;
   end;
 
+  LMenuW := (MenuGrid.Width - 18) / 2;
   if LIsTablet then
+    LMenuH := 92
+  else
+    LMenuH := 80;
+
+  {$IFDEF ANDROID}
+  LShowVisitas := RepresentantePermiteVisitas;
+  {$ELSE}
+  LShowVisitas := True;
+  {$ENDIF}
+
+  LMenuObj := FindComponent('Menu1') as TControl;
+  if Assigned(LMenuObj) then LMenuObj.SetBounds(0, 0, LMenuW, LMenuH);
+  LMenuObj := FindComponent('Menu2') as TControl;
+  if Assigned(LMenuObj) then LMenuObj.SetBounds(LMenuW + 18, 0, LMenuW, LMenuH);
+  LMenuObj := FindComponent('Menu3') as TControl;
+  if Assigned(LMenuObj) then LMenuObj.SetBounds(0, LMenuH + 16, LMenuW, LMenuH);
+  LMenuObj := FindComponent('Menu4') as TControl;
+  if Assigned(LMenuObj) then LMenuObj.SetBounds(LMenuW + 18, LMenuH + 16, LMenuW, LMenuH);
+  LMenuObj := FindComponent('Menu5') as TControl;
+  if Assigned(LMenuObj) then LMenuObj.SetBounds(0, (LMenuH + 16) * 2, LMenuW, LMenuH);
+
+  LMenuObj := FindComponent('Menu6') as TControl;
+  if Assigned(LMenuObj) then
   begin
-    LMenuW := (MenuGrid.Width - 18) / 2;
-    LMenuH := 92;
-    LMenuObj := FindComponent('Menu1') as TControl;
-    if Assigned(LMenuObj) then LMenuObj.SetBounds(0, 0, LMenuW, LMenuH);
-    LMenuObj := FindComponent('Menu2') as TControl;
-    if Assigned(LMenuObj) then LMenuObj.SetBounds(LMenuW + 18, 0, LMenuW, LMenuH);
-    LMenuObj := FindComponent('Menu3') as TControl;
-    if Assigned(LMenuObj) then LMenuObj.SetBounds(0, LMenuH + 16, LMenuW, LMenuH);
-    LMenuObj := FindComponent('Menu4') as TControl;
-    if Assigned(LMenuObj) then LMenuObj.SetBounds(LMenuW + 18, LMenuH + 16, LMenuW, LMenuH);
-    LMenuObj := FindComponent('Menu5') as TControl;
-    if Assigned(LMenuObj) then LMenuObj.SetBounds(0, (LMenuH + 16) * 2, LMenuW, LMenuH);
-    LMenuObj := FindComponent('Menu6') as TControl;
-    if Assigned(LMenuObj) then LMenuObj.SetBounds(LMenuW + 18, (LMenuH + 16) * 2, LMenuW, LMenuH);
+    LMenuObj.Visible := LShowVisitas;
+    LMenuObj.SetBounds(LMenuW + 18, (LMenuH + 16) * 2, LMenuW, LMenuH);
+  end;
+
+  LMenuObj := FindComponent('Menu7') as TControl;
+  if Assigned(LMenuObj) then
+  begin
+    LMenuObj.Visible := True;
+    if LShowVisitas then
+      LMenuObj.SetBounds(0, (LMenuH + 16) * 3, LMenuW, LMenuH)
+    else
+      LMenuObj.SetBounds(LMenuW + 18, (LMenuH + 16) * 2, LMenuW, LMenuH);
   end;
 end;
 
 procedure TfrmPrincipal.imSairClick(Sender: TObject);
 begin
-  try
-    dmApp.SetAppConfigValue('login_saida_manual', '1');
-    dmApp.ClearAppState('');
-  except
-  end;
+  // Fechar a tela nao encerra a sessao nem o rastreamento do servico.
   SairdoSistema;
 end;
 

@@ -25,6 +25,7 @@ procedure killApp;
 function ChecarConexao: Boolean;
 function IsXiaomiDevice: Boolean;
 function AndroidNavigationInset(const AIsLandscape: Boolean): Single;
+function AndroidBottomSafeMargin(const AIsLandscape: Boolean): Single;
 function EncodeBase64(const texto: string): string;
 function DecodeBase64(const texto: string): string;
 function Base64FromBitmap(Bitmap: FMX.Graphics.TBitmap): string;
@@ -53,7 +54,6 @@ uses
   Androidapi.IOUtils,
   Androidapi.Jni.App,
   FMX.Helpers.Android,
-  FMX.Dialogs,
   FMX.Platform;
 {$ENDIF}
 
@@ -143,9 +143,34 @@ begin
   end;
 {$ENDIF}
 end;
+
+function AndroidBottomSafeMargin(const AIsLandscape: Boolean): Single;
+{$IFDEF ANDROID}
+var
+  LInset: Single;
+{$ENDIF}
+begin
+{$IFDEF ANDROID}
+  if TJBuild_VERSION.JavaClass.SDK_INT < 35 then
+  begin
+    Result := 0;
+    Exit;
+  end;
+
+  LInset := AndroidNavigationInset(False);
+  Result := LInset;
+  if AIsLandscape then
+    Result := Max(Result, 62);
+  if Result > 96 then
+    Result := 96;
+{$ELSE}
+  Result := 0;
+{$ENDIF}
+end;
+
 procedure SairdoSistema;
 begin
-  TDialogService.MessageDialog('Confirmar a saida do sistema?', System.UITypes.TMsgDlgType.mtInformation, [System.UITypes.TMsgDlgBtn.mbYes, System.UITypes.TMsgDlgBtn.mbNo], System.UITypes.TMsgDlgBtn.mbNo, 0,
+  TDialogService.MessageDialog('Confirmar a saída do sistema?', System.UITypes.TMsgDlgType.mtInformation, [System.UITypes.TMsgDlgBtn.mbYes, System.UITypes.TMsgDlgBtn.mbNo], System.UITypes.TMsgDlgBtn.mbNo, 0,
     procedure(const AResult: TModalResult)
     begin
       case AResult of
@@ -350,5 +375,7 @@ begin
 end;
 
 end.
+
+
 
 

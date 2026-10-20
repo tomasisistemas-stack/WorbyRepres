@@ -34,7 +34,6 @@ type
     LyListView: TLayout;
     LvPedidos: TListView;
     procedure FormShow(Sender: TObject);
-    procedure FormActivate(Sender: TObject);
     procedure BtnBuscarClick(Sender: TObject);
     procedure BtnVoltarClick(Sender: TObject);
     procedure BtnImprimirClick(Sender: TObject);
@@ -442,98 +441,157 @@ end;
 
 procedure TfrmPedidosEnviados.ApplyResponsiveLayout;
 var
-  LIsTabletPortrait: Boolean;
+  LIsLandscape: Boolean;
+  LIsTablet: Boolean;
   LBottom: Single;
+  LRightSafe: Single;
   LContentW: Single;
   LX: Single;
   LFooterH: Single;
+  LFooterTop: Single;
+  LListTop: Single;
+  LListH: Single;
+  LSummaryGap: Single;
+  LBtnW: Single;
+  LBtnH: Single;
+  LBtnGap: Single;
 begin
   if not Assigned(LayoutRodape) then
     Exit;
+  if (ClientWidth <= 0) or (ClientHeight <= 0) then
+    Exit;
+
   EnsureFiltroCabecalho;
 
-  LIsTabletPortrait := (ClientHeight > ClientWidth) and (ClientWidth >= 430);
-  LBottom := 8;
-  if ClientHeight > ClientWidth then
-    LBottom := 50;
+  LIsLandscape := ClientWidth > ClientHeight;
+  LIsTablet := Min(ClientWidth, ClientHeight) >= 600;
+  LBottom := AndroidBottomSafeMargin(LIsLandscape);
+  if LIsLandscape then
+    LRightSafe := Max(0, AndroidNavigationInset(True) + 8)
+  else
+    LRightSafe := 0;
 
-  if LIsTabletPortrait then
+  if LIsLandscape then
+  begin
+    TopBar.Height := 72;
+    LFooterH := 58;
+  end
+  else if LIsTablet then
   begin
     TopBar.Height := 82;
-    LbTitulo.Position.Y := (TopBar.Height - LbTitulo.Height) * 0.75;
-
-    if ClientWidth >= 600 then
-      LContentW := Min(ClientWidth - 28, 760)
-    else
-      LContentW := Min(ClientWidth - 20, 620);
-    LX := (ClientWidth - LContentW) / 2;
-
-    CardBusca.Align := TAlignLayout.None;
-    CardBusca.SetBounds(LX, TopBar.Height + 8, LContentW, 130);
-    LbBuscar.Position.X := 18;
-    LbBuscar.Position.Y := 8;
-    EdBuscar.Position.X := 18;
-    EdBuscar.Position.Y := 34;
-    EdBuscar.Width := CardBusca.Width - 36;
-    CbStatusPedidos.SetBounds(18, 78, 128, 34);
-    EdDiaInicial.SetBounds(CbStatusPedidos.Position.X + CbStatusPedidos.Width + 12, 78, 58, 34);
-    EdDiaFinal.SetBounds(EdDiaInicial.Position.X + EdDiaInicial.Width + 12, 78, 58, 34);
-    BtnBuscar.Visible := False;
-
-    CardTotalPedidos.SetBounds(LX, CardBusca.Position.Y + CardBusca.Height + 10, (LContentW - 12) / 2, 78);
-    CardDescMedio.SetBounds(CardTotalPedidos.Position.X + CardTotalPedidos.Width + 12, CardTotalPedidos.Position.Y, CardTotalPedidos.Width, 78);
-    LbTotalPedidosTitulo.SetBounds(10, 10, CardTotalPedidos.Width - 20, 20);
-    LbTotalPedidosValor.SetBounds(10, 38, CardTotalPedidos.Width - 20, 26);
-    LbDescMedioTitulo.SetBounds(10, 10, CardDescMedio.Width - 20, 20);
-    LbDescMedioValor.SetBounds(10, 36, CardDescMedio.Width - 20, 30);
-
-    LFooterH := 58;
-    LayoutRodape.Align := TAlignLayout.None;
-    LayoutRodape.SetBounds(LX, ClientHeight - LFooterH - LBottom, LContentW, LFooterH);
-    LayoutRodape.Margins.Bottom := 0;
-    BtnImprimir.Align := TAlignLayout.None;
-    BtnCompartilhar.Align := TAlignLayout.None;
-    BtnCompartilhar.SetBounds(LayoutRodape.Width - BtnCompartilhar.Width, 1, BtnCompartilhar.Width, 56);
-    BtnImprimir.SetBounds(BtnCompartilhar.Position.X - BtnImprimir.Width - 12, 1, BtnImprimir.Width, 56);
-
-    LyListView.Align := TAlignLayout.None;
-    LyListView.SetBounds(LX, CardTotalPedidos.Position.Y + CardTotalPedidos.Height + 10,
-      LContentW, LayoutRodape.Position.Y - (CardTotalPedidos.Position.Y + CardTotalPedidos.Height) - 18);
-    if ClientWidth >= 600 then
-      LvPedidos.ItemAppearance.ItemHeight := 68
-    else
-      LvPedidos.ItemAppearance.ItemHeight := 70;
-    LvPedidos.ItemAppearanceObjects.ItemObjects.Text.Width := LContentW - 36;
-    LvPedidos.ItemAppearanceObjects.ItemObjects.Detail.Width := LContentW - 36;
+    LFooterH := 64;
   end
   else
   begin
-    CardBusca.Height := 130;
-    EdBuscar.Width := CardBusca.Width - 36;
+    TopBar.Height := 96;
+    LFooterH := 72;
+  end;
+
+  TopBar.Align := TAlignLayout.None;
+  TopBar.SetBounds(0, 0, ClientWidth, TopBar.Height);
+  LbTitulo.Position.X := 18;
+  LbTitulo.Position.Y := (TopBar.Height - LbTitulo.Height) / 2;
+  LbTitulo.Width := ClientWidth - 36;
+
+  if LIsLandscape then
+    LContentW := Min(ClientWidth - LRightSafe - 24, 1040)
+  else if LIsTablet then
+    LContentW := Min(ClientWidth - 28, 760)
+  else
+    LContentW := Min(ClientWidth - 20, 620);
+  if LContentW < 300 then
+    LContentW := Max(260, ClientWidth - LRightSafe - 20);
+  LX := Max(10, ((ClientWidth - LRightSafe) - LContentW) / 2);
+
+  CardBusca.Align := TAlignLayout.None;
+  BtnBuscar.Visible := False;
+
+  if LIsLandscape and (LContentW >= 700) then
+  begin
+    LSummaryGap := 12;
+    CardBusca.SetBounds(LX, TopBar.Height + 10, LContentW - 250 - LSummaryGap, 118);
+    LbBuscar.SetBounds(18, 8, CardBusca.Width - 36, 20);
+    EdBuscar.SetBounds(18, 32, CardBusca.Width - 36, 34);
+    CbStatusPedidos.SetBounds(18, 74, 128, 32);
+    EdDiaInicial.SetBounds(CbStatusPedidos.Position.X + CbStatusPedidos.Width + 12, 74, 58, 32);
+    EdDiaFinal.SetBounds(EdDiaInicial.Position.X + EdDiaInicial.Width + 12, 74, 58, 32);
+
+    CardTotalPedidos.SetBounds(CardBusca.Position.X + CardBusca.Width + LSummaryGap, CardBusca.Position.Y, 250, 54);
+    CardDescMedio.SetBounds(CardTotalPedidos.Position.X, CardTotalPedidos.Position.Y + CardTotalPedidos.Height + 10, 250, 54);
+    LbTotalPedidosTitulo.SetBounds(10, 7, CardTotalPedidos.Width - 20, 18);
+    LbTotalPedidosValor.SetBounds(10, 27, CardTotalPedidos.Width - 20, 22);
+    LbDescMedioTitulo.SetBounds(10, 7, CardDescMedio.Width - 20, 18);
+    LbDescMedioValor.SetBounds(10, 25, CardDescMedio.Width - 20, 24);
+
+    LListTop := CardBusca.Position.Y + CardBusca.Height + 10;
+  end
+  else
+  begin
+    CardBusca.SetBounds(LX, TopBar.Height + 8, LContentW, 130);
+    LbBuscar.SetBounds(18, 8, CardBusca.Width - 36, 20);
+    EdBuscar.SetBounds(18, 34, CardBusca.Width - 36, 36);
     CbStatusPedidos.SetBounds(18, 78, 128, 34);
-    EdDiaInicial.SetBounds(158, 78, 58, 34);
-    EdDiaFinal.SetBounds(228, 78, 58, 34);
-    BtnBuscar.Visible := False;
-    CardTotalPedidos.SetBounds(10, CardBusca.Position.Y + CardBusca.Height + 8, (ClientWidth - 32) / 2, 78);
-    CardDescMedio.SetBounds(CardTotalPedidos.Position.X + CardTotalPedidos.Width + 12, CardTotalPedidos.Position.Y, CardTotalPedidos.Width, 78);
+    EdDiaInicial.SetBounds(CbStatusPedidos.Position.X + CbStatusPedidos.Width + 12, 78, 58, 34);
+    EdDiaFinal.SetBounds(EdDiaInicial.Position.X + EdDiaInicial.Width + 12, 78, 58, 34);
+
+    LSummaryGap := 12;
+    CardTotalPedidos.SetBounds(LX, CardBusca.Position.Y + CardBusca.Height + 10, (LContentW - LSummaryGap) / 2, 78);
+    CardDescMedio.SetBounds(CardTotalPedidos.Position.X + CardTotalPedidos.Width + LSummaryGap, CardTotalPedidos.Position.Y, CardTotalPedidos.Width, 78);
     LbTotalPedidosTitulo.SetBounds(10, 10, CardTotalPedidos.Width - 20, 20);
     LbTotalPedidosValor.SetBounds(10, 38, CardTotalPedidos.Width - 20, 26);
     LbDescMedioTitulo.SetBounds(10, 10, CardDescMedio.Width - 20, 20);
     LbDescMedioValor.SetBounds(10, 36, CardDescMedio.Width - 20, 30);
-    LyListView.Align := TAlignLayout.None;
-    LyListView.SetBounds(10, CardTotalPedidos.Position.Y + CardTotalPedidos.Height + 8,
-      ClientWidth - 20, ClientHeight - LayoutRodape.Height - LayoutRodape.Margins.Bottom - (CardTotalPedidos.Position.Y + CardTotalPedidos.Height) - 20);
-    LayoutRodape.Margins.Bottom := LBottom;
-    LvPedidos.ItemAppearance.ItemHeight := 50;
+
+    LListTop := CardTotalPedidos.Position.Y + CardTotalPedidos.Height + 10;
   end;
+
+  LFooterTop := ClientHeight - LFooterH - LBottom - 6;
+  if LFooterTop < LListTop + 120 then
+    LFooterTop := ClientHeight - LFooterH - LBottom - 2;
+
+  LyListView.Align := TAlignLayout.None;
+  LListH := Max(120, LFooterTop - LListTop - 8);
+  LyListView.SetBounds(LX, LListTop, LContentW, LListH);
+
+  if LIsLandscape then
+    LvPedidos.ItemAppearance.ItemHeight := 68
+  else if LIsTablet then
+    LvPedidos.ItemAppearance.ItemHeight := 64
+  else
+    LvPedidos.ItemAppearance.ItemHeight := 56;
+  LvPedidos.ItemAppearanceObjects.ItemObjects.Text.Width := LContentW - 36;
+  LvPedidos.ItemAppearanceObjects.ItemObjects.Detail.Width := LContentW - 36;
+
+  LayoutRodape.Align := TAlignLayout.None;
+  LayoutRodape.Margins.Bottom := 0;
+  LayoutRodape.SetBounds(LX, LFooterTop, LContentW, LFooterH);
+
+  BtnImprimir.Align := TAlignLayout.None;
+  BtnCompartilhar.Align := TAlignLayout.None;
+  BtnImprimir.Visible := True;
+  BtnCompartilhar.Visible := True;
+  LBtnGap := 8;
+  LBtnH := Min(42, LayoutRodape.Height - 10);
+  if LIsLandscape then
+    LBtnW := Max(92, Min(124, (LayoutRodape.Width - 72 - (LBtnGap * 2)) / 2))
+  else if LIsTablet then
+    LBtnW := 108
+  else
+    LBtnW := 86;
+  BtnCompartilhar.SetBounds(LayoutRodape.Width - LBtnW - 6, (LayoutRodape.Height - LBtnH) / 2, LBtnW, LBtnH);
+  BtnImprimir.SetBounds(BtnCompartilhar.Position.X - LBtnW - LBtnGap, BtnCompartilhar.Position.Y, LBtnW, LBtnH);
+  BtnVoltar.Align := TAlignLayout.None;
+  BtnVoltar.SetBounds(0, (LayoutRodape.Height - 50) / 2, 50, 50);
 
   CardTotalPedidos.Visible := True;
   CardDescMedio.Visible := True;
+  CardBusca.BringToFront;
   CardTotalPedidos.BringToFront;
   CardDescMedio.BringToFront;
+  LyListView.BringToFront;
   LayoutRodape.BringToFront;
+  TopBar.BringToFront;
 end;
-
 procedure TfrmPedidosEnviados.Resize;
 begin
   inherited;
@@ -628,6 +686,13 @@ var
   LRepId, LFopId, LPrazoId: Integer;
   LFornecedor: string;
   LCodCliente: Integer;
+  LDescricao: string;
+  LUnidade: string;
+  LDescricaoLinhas: TStringList;
+  LDescricaoOffset: Integer;
+  LItemZebra: Boolean;
+  LTotalTexto: string;
+  LTotalLabelWidth: Integer;
 {$IFDEF ANDROID}
   LIntent: JIntent;
   LUri: Jnet_Uri;
@@ -643,6 +708,62 @@ var
     else
       Result := StringOfChar(' ', AWidth - Length(S)) + S;
   end;
+  function IsKnownUnit(const AValue: string): Boolean;
+  begin
+    Result := Pos('|' + UpperCase(AValue) + '|',
+      '|UN|UND|KG|G|GR|MG|T|TON|L|LT|ML|M|MT|M2|M3|CM|MM|PC|PCT|CX|FD|RL|BD|SC|PAR|JG|KIT|') > 0;
+  end;
+  function ParseCodeAndUnit(const AValue: string; out ACode, AUnit: string): Boolean;
+  var
+    P, I: Integer;
+  begin
+    ACode := '';
+    AUnit := '';
+    P := Length(AValue);
+    while (P > 0) and CharInSet(AValue[P], ['A'..'Z', 'a'..'z']) do
+      Dec(P);
+    ACode := Copy(AValue, 1, P);
+    AUnit := UpperCase(Copy(AValue, P + 1, MaxInt));
+    Result := (P > 0) and (AUnit <> '') and IsKnownUnit(AUnit);
+    if Result then
+      for I := 1 to Length(ACode) do
+        if not CharInSet(ACode[I], ['0'..'9']) then
+          Exit(False);
+    if not Result then
+    begin
+      ACode := '';
+      AUnit := '';
+    end;
+  end;
+  procedure NormalizeDescriptionUnit(var ADescription, AUnit: string);
+  var
+    LCode, LUnit, LJoined, LToken: string;
+    LTokenStart: Integer;
+  begin
+    ADescription := Trim(ADescription);
+    AUnit := Trim(AUnit);
+    if ParseCodeAndUnit(AUnit, LCode, LUnit) then
+    begin
+      LJoined := LCode + LUnit;
+      if (Length(ADescription) >= Length(LJoined)) and
+        SameText(Copy(ADescription, Length(ADescription) - Length(LJoined) + 1, Length(LJoined)), LJoined) then
+        Delete(ADescription, Length(ADescription) - Length(LUnit) + 1, Length(LUnit))
+      else if (Length(ADescription) < Length(LCode)) or
+        not SameText(Copy(ADescription, Length(ADescription) - Length(LCode) + 1, Length(LCode)), LCode) then
+        ADescription := Trim(ADescription + ' ' + LCode);
+      AUnit := LUnit;
+    end;
+    LTokenStart := LastDelimiter(' ', ADescription) + 1;
+    LToken := Copy(ADescription, LTokenStart, MaxInt);
+    if ParseCodeAndUnit(LToken, LCode, LUnit) and
+      ((AUnit = '') or SameText(AUnit, LUnit)) then
+    begin
+      Delete(ADescription, Length(ADescription) - Length(LUnit) + 1, Length(LUnit));
+      ADescription := Trim(ADescription);
+      if AUnit = '' then
+        AUnit := LUnit;
+    end;
+  end;
   function EscPDF(const S: string): string;
   begin
     Result := StringReplace(S, '\', '\\', [rfReplaceAll]);
@@ -651,11 +772,11 @@ var
   end;
   procedure SaveTextAsPdf(const AFileName: string; ALines: TStrings);
   var
-    I, Y: Integer;
-    LStream: TStringList;
-    LContent: string;
-    LContentLen: Integer;
-    LOffsets: array[1..5] of Integer;
+    I, J, Y, LGroupCount, LObjectCount, LContentLen: Integer;
+    LStream, LPages, LPage: TStringList;
+    LContent, LLine, LObjectsText: string;
+    LOffsets: TArray<Integer>;
+    LIsZebra: Boolean;
     procedure AddRaw(const S: string);
     begin
       LStream.Add(S);
@@ -668,50 +789,100 @@ var
       for J := 0 to LStream.Count - 1 do
         Inc(Result, Length(AnsiString(LStream[J])) + 2);
     end;
+    procedure NewPage;
+    begin
+      LPage := TStringList.Create;
+      LPages.AddObject('', LPage);
+      Y := 810;
+    end;
+    procedure AddTextLine(const S: string);
+    begin
+      LPage.Add(Format('BT /F1 10 Tf 1 0 0 1 20 %d Tm (%s) Tj ET', [Y, EscPDF(S)]));
+      Dec(Y, 12);
+    end;
   begin
     LStream := TStringList.Create;
+    LPages := TStringList.Create;
     try
-      LContent := 'BT /F1 10 Tf' + sLineBreak;
-      Y := 810;
-      for I := 0 to ALines.Count - 1 do
+      NewPage;
+      I := 0;
+      while I < ALines.Count do
       begin
-        LContent := LContent + Format('1 0 0 1 20 %d Tm (%s) Tj', [Y, EscPDF(ALines[I])]) + sLineBreak;
-        Dec(Y, 12);
-        if Y < 20 then Break;
+        LLine := ALines[I];
+        if (LLine = '#ITEMZ#') or (LLine = '#ITEMW#') then
+        begin
+          LIsZebra := LLine = '#ITEMZ#';
+          LGroupCount := 0;
+          while (I + 1 + LGroupCount < ALines.Count) and
+            (ALines[I + 1 + LGroupCount] <> '#ENDITEM#') do
+            Inc(LGroupCount);
+          if LGroupCount = 0 then
+          begin
+            Inc(I);
+            Continue;
+          end;
+          if Y - (LGroupCount * 12) < 20 then
+            NewPage;
+          if LIsZebra then
+            LPage.Add(Format('q 0.92 g 15 %d 565 %d re f Q',
+              [Y - ((LGroupCount - 1) * 12) - 4, LGroupCount * 12]));
+          Inc(I);
+          for J := 0 to LGroupCount - 1 do
+          begin
+            AddTextLine(ALines[I]);
+            Inc(I);
+          end;
+          if (I < ALines.Count) and (ALines[I] = '#ENDITEM#') then
+            Inc(I);
+          Continue;
+        end;
+        if Y < 20 then
+          NewPage;
+        AddTextLine(LLine);
+        Inc(I);
       end;
-      LContent := LContent + 'ET' + sLineBreak;
-      LContentLen := Length(AnsiString(StringReplace(LContent, sLineBreak, #10, [rfReplaceAll])));
 
+      LObjectCount := 3 + (LPages.Count * 2);
+      SetLength(LOffsets, LObjectCount + 1);
       AddRaw('%PDF-1.4');
-
       LOffsets[1] := StreamPos;
       AddRaw('1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj');
-
       LOffsets[2] := StreamPos;
-      AddRaw('2 0 obj<< /Type /Pages /Kids [3 0 R] /Count 1 >>endobj');
-
+      LObjectsText := '2 0 obj<< /Type /Pages /Kids [';
+      for I := 0 to LPages.Count - 1 do
+        LObjectsText := LObjectsText + IntToStr(4 + I * 2) + ' 0 R ';
+      LObjectsText := LObjectsText + '] /Count ' + IntToStr(LPages.Count) + ' >>endobj';
+      AddRaw(LObjectsText);
       LOffsets[3] := StreamPos;
-      AddRaw('3 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>endobj');
-
-      LOffsets[4] := StreamPos;
-      AddRaw(Format('4 0 obj<< /Length %d >>stream', [LContentLen]));
-      AddRaw(StringReplace(LContent, sLineBreak, #10, [rfReplaceAll]));
-      AddRaw('endstream endobj');
-
-      LOffsets[5] := StreamPos;
-      AddRaw('5 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>endobj');
-
+      AddRaw('3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>endobj');
+      for I := 0 to LPages.Count - 1 do
+      begin
+        LPage := TStringList(LPages.Objects[I]);
+        LContent := LPage.Text;
+        LContentLen := Length(AnsiString(StringReplace(LContent, sLineBreak, #10, [rfReplaceAll])));
+        LOffsets[4 + I * 2] := StreamPos;
+        AddRaw(Format('%d 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents %d 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj',
+          [4 + I * 2, 5 + I * 2]));
+        LOffsets[5 + I * 2] := StreamPos;
+        AddRaw(Format('%d 0 obj<< /Length %d >>stream', [5 + I * 2, LContentLen]));
+        AddRaw(StringReplace(LContent, sLineBreak, #10, [rfReplaceAll]));
+        AddRaw('endstream endobj');
+      end;
+      I := StreamPos;
       AddRaw('xref');
-      AddRaw('0 6');
+      AddRaw(Format('0 %d', [LObjectCount + 1]));
       AddRaw('0000000000 65535 f ');
-      for I := 1 to 5 do
-        AddRaw(Format('%.10d 00000 n ', [LOffsets[I]]));
-      AddRaw('trailer<< /Size 6 /Root 1 0 R >>');
-      AddRaw(Format('startxref%s%d', [sLineBreak, StreamPos]));
+      for J := 1 to LObjectCount do
+        AddRaw(Format('%.10d 00000 n ', [LOffsets[J]]));
+      AddRaw(Format('trailer<< /Size %d /Root 1 0 R >>', [LObjectCount + 1]));
+      AddRaw(Format('startxref%s%d', [sLineBreak, I]));
       AddRaw('%%EOF');
 
       LStream.SaveToFile(AFileName, TEncoding.ASCII);
     finally
+      for I := 0 to LPages.Count - 1 do
+        LPages.Objects[I].Free;
+      LPages.Free;
       LStream.Free;
     end;
   end;
@@ -720,6 +891,7 @@ begin
   QPedido := TFDQuery.Create(nil);
   QItens := TFDQuery.Create(nil);
   LConteudo := TStringList.Create;
+  LDescricaoLinhas := TStringList.Create;
   try
     QPedido.Connection := dmApp.FDConnection;
     QPedido.SQL.Text := 'select representative_code, vendas1_json, coalesce(sent_at, created_at) dt_ref, numdoc_remote from outbound_pedido where id = :p0';
@@ -777,19 +949,46 @@ begin
     LConteudo.Add('CLIENTE.......: ' + JsonFieldAsString(LVenda1, 'cod_cliente') + ' - ' + LCli);
     LConteudo.Add('DATA..........: ' + LData + ' ' + LHora);
     LConteudo.Add('');
-    LConteudo.Add(PadRight('CODIGO', 10) + PadRight('DESCRICAO', 45) + PadRight('UND', 6) + PadLeft('QTDE', 8) + PadLeft('PRECO', 12) + PadLeft('TOTAL', 12));
-    LConteudo.Add(StringOfChar('-', 95));
+    LConteudo.Add(PadRight('CODIGO', 8) + PadRight('DESCRICAO', 40) + PadRight('UND', 5) + PadLeft('QTDE', 8) + PadLeft('PRECO', 10) + PadLeft('TOTAL', 10));
+    LConteudo.Add(StringOfChar('-', 81));
+    LItemZebra := False;
     while not QItens.Eof do
     begin
       LVenda2 := QItens.FieldByName('vendas2_json').AsString;
-      LConteudo.Add(
-        PadRight(JsonFieldAsString(LVenda2, 'cod_produto'), 10) +
-        PadRight(Copy(JsonFieldAsString(LVenda2, 'nom_produto'), 1, 45), 45) +
-        PadRight(JsonFieldAsString(LVenda2, 'unidade'), 6) +
-        PadLeft(FormatFloat('#,##0.###', JsonFieldAsFloat(LVenda2, 'qtd'), LFS), 8) +
-        PadLeft(FormatFloat('#,##0.00', JsonFieldAsFloat(LVenda2, 'preco'), LFS), 12) +
-        PadLeft(FormatFloat('#,##0.00', JsonFieldAsFloat(LVenda2, 'total_item'), LFS), 12)
-      );
+      LDescricao := Trim(JsonFieldAsString(LVenda2, 'nom_produto'));
+      LUnidade := JsonFieldAsString(LVenda2, 'unidade');
+      NormalizeDescriptionUnit(LDescricao, LUnidade);
+      LDescricaoLinhas.Clear;
+      while Length(LDescricao) > 40 do
+      begin
+        LDescricaoOffset := LastDelimiter(' ', Copy(LDescricao, 1, 40));
+        if LDescricaoOffset <= 1 then
+          LDescricaoOffset := 40;
+        LDescricaoLinhas.Add(Trim(Copy(LDescricao, 1, LDescricaoOffset)));
+        Delete(LDescricao, 1, LDescricaoOffset);
+        LDescricao := TrimLeft(LDescricao);
+      end;
+      LDescricaoLinhas.Add(LDescricao);
+      if LItemZebra then
+        LConteudo.Add('#ITEMZ#')
+      else
+        LConteudo.Add('#ITEMW#');
+      for LDescricaoOffset := 0 to LDescricaoLinhas.Count - 1 do
+      begin
+        if LDescricaoOffset = 0 then
+          LConteudo.Add(
+            PadRight(JsonFieldAsString(LVenda2, 'cod_produto'), 8) +
+            PadRight(LDescricaoLinhas[LDescricaoOffset], 40) +
+            PadRight(LUnidade, 5) +
+            PadLeft(FormatFloat('#,##0.###', JsonFieldAsFloat(LVenda2, 'qtd'), LFS), 8) +
+            PadLeft(FormatFloat('#,##0.00', JsonFieldAsFloat(LVenda2, 'preco'), LFS), 10) +
+            PadLeft(FormatFloat('#,##0.00', JsonFieldAsFloat(LVenda2, 'total_item'), LFS), 10))
+        else
+          LConteudo.Add(StringOfChar(' ', 8) + PadRight(LDescricaoLinhas[LDescricaoOffset], 40) +
+            PadRight('', 5) + StringOfChar(' ', 28));
+      end;
+      LConteudo.Add('#ENDITEM#');
+      LItemZebra := not LItemZebra;
       LTot := LTot + JsonFieldAsFloat(LVenda2, 'total_item');
       QItens.Next;
     end;
@@ -808,8 +1007,11 @@ begin
     if LPrazo = '' then
       LPrazo := IntToStr(LPrazoId);
 
-    LConteudo.Add(StringOfChar('-', 95));
-    LConteudo.Add(PadRight('CONDICAO DE PAGTO.: ' + LFop + ' - ' + LPrazo, 68) + PadLeft('TOTAL: ' + FormatFloat('#,###,##0.00', LTot, LFS), 25));
+    LConteudo.Add(StringOfChar('-', 81));
+    LTotalTexto := FormatFloat('#,###,##0.00', LTot, LFS);
+    LTotalLabelWidth := Max(0, 81 - Length(LTotalTexto) - Length('TOTAL: '));
+    LConteudo.Add(PadRight('CONDICAO DE PAGTO.: ' + LFop + ' - ' + LPrazo, LTotalLabelWidth) +
+      'TOTAL: ' + LTotalTexto);
 
 
     LPdfFile := IncludeTrailingPathDelimiter(System.IOUtils.TPath.GetDocumentsPath) +
@@ -834,6 +1036,7 @@ begin
 {$ENDIF}
   finally
     LConteudo.Free;
+    LDescricaoLinhas.Free;
     QItens.Free;
     QPedido.Free;
   end;
@@ -1128,10 +1331,6 @@ LbTitulo.Text := 'Pedidos Enviados';
   AtualizarDiasFiltro;
   CarregarMesesAsync;
   CarregarPedidos;
-end;
-
-procedure TfrmPedidosEnviados.FormActivate(Sender: TObject);
-begin
 end;
 
 procedure TfrmPedidosEnviados.BtnBuscarClick(Sender: TObject);

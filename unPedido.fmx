@@ -267,6 +267,50 @@ object frmPedido: TfrmPedido
                 Text = 'Situacao'
               end
             end
+            object LabelBoletosAbertos: TLabel
+              StyledSettings = []
+              Position.X = 20.000000000000000000
+              Position.Y = 10.000000000000000000
+              Size.Width = 300.000000000000000000
+              Size.Height = 18.000000000000000000
+              Size.PlatformDefault = False
+              TextSettings.FontColor = xFF6B7280
+              Text = 'Boletos em aberto'
+              TabOrder = 3
+            end
+            object LvBoletosAbertos: TListView
+              ItemAppearanceClassName = 'TListItemRightDetailAppearance'
+              ItemEditAppearanceClassName = 'TListItemRightDetailDeleteAppearance'
+              HeaderAppearanceClassName = 'TListHeaderObjects'
+              FooterAppearanceClassName = 'TListHeaderObjects'
+              Position.X = 20.000000000000000000
+              Position.Y = 30.000000000000000000
+              Size.Width = 300.000000000000000000
+              Size.Height = 54.000000000000000000
+              Size.PlatformDefault = False
+              TabOrder = 4
+              ItemAppearance.ItemHeight = 42
+              ItemAppearance.ItemEditHeight = 30
+              ItemAppearance.HeaderHeight = 1
+              ItemAppearance.FooterHeight = 1
+              ItemAppearanceObjects.ItemObjects.Text.Font.Size = 11.000000000000000000
+              ItemAppearanceObjects.ItemObjects.Text.TextVertAlign = Leading
+              ItemAppearanceObjects.ItemObjects.Text.WordWrap = True
+              ItemAppearanceObjects.ItemObjects.Text.Width = 300.000000000000000000
+              ItemAppearanceObjects.ItemObjects.Text.Height = 36.000000000000000000
+              ItemAppearanceObjects.ItemObjects.Text.PlaceOffset.X = 14.000000000000000000
+              ItemAppearanceObjects.ItemObjects.Accessory.Visible = False
+              ItemAppearanceObjects.ItemObjects.Detail.Font.Size = 10.000000000000000000
+              ItemAppearanceObjects.ItemObjects.Detail.TextAlign = Leading
+              ItemAppearanceObjects.ItemObjects.Detail.TextVertAlign = Leading
+              ItemAppearanceObjects.ItemObjects.Detail.Width = 300.000000000000000000
+              ItemAppearanceObjects.ItemObjects.Detail.Height = 15.000000000000000000
+              ItemAppearanceObjects.ItemObjects.Detail.Visible = False
+              ItemAppearanceObjects.ItemObjects.Detail.PlaceOffset.X = 14.000000000000000000
+              ItemAppearanceObjects.ItemObjects.Detail.PlaceOffset.Y = 11.000000000000000000
+              ItemAppearanceObjects.HeaderObjects.Text.Visible = False
+              ItemAppearanceObjects.FooterObjects.Text.Visible = False
+            end
           end
           object CardFormaPgto: TRectangle
             Align = MostTop
@@ -2399,7 +2443,7 @@ object frmPedido: TfrmPedido
               Size.Height = 490.000000000000000000
               Size.PlatformDefault = False
               TabOrder = 0
-              ItemAppearance.ItemHeight = 45
+              ItemAppearance.ItemHeight = 55
               ItemAppearanceObjects.ItemObjects.Text.Font.Size = 11.000000000000000000
               ItemAppearanceObjects.ItemObjects.Text.Width = 235.000000000000000000
               ItemAppearanceObjects.ItemObjects.Text.Height = 18.000000000000000000
@@ -2408,6 +2452,7 @@ object frmPedido: TfrmPedido
               ItemAppearanceObjects.ItemObjects.Detail.TextVertAlign = Leading
               ItemAppearanceObjects.ItemObjects.Detail.Width = 235.000000000000000000
               ItemAppearanceObjects.ItemObjects.Detail.Height = 30.000000000000000000
+              ItemAppearanceObjects.ItemObjects.Detail.Visible = False
               ItemAppearanceObjects.ItemObjects.Detail.PlaceOffset.Y = 18.000000000000000000
               ItemAppearanceObjects.ItemObjects.Image.PlaceOffset.X = 10.000000000000000000
             end
@@ -2584,6 +2629,7 @@ object frmPedido: TfrmPedido
               ItemAppearanceObjects.ItemObjects.Detail.TextVertAlign = Leading
               ItemAppearanceObjects.ItemObjects.Detail.Width = 235.000000000000000000
               ItemAppearanceObjects.ItemObjects.Detail.Height = 30.000000000000000000
+              ItemAppearanceObjects.ItemObjects.Detail.Visible = False
               ItemAppearanceObjects.ItemObjects.Detail.PlaceOffset.Y = 18.000000000000000000
               ItemAppearanceObjects.ItemObjects.Image.PlaceOffset.X = 10.000000000000000000
             end

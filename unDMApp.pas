@@ -8,6 +8,7 @@ uses
   System.Net.HttpClient,
   System.Net.URLClient,
   System.NetEncoding,
+  System.ZLib,
   System.SysUtils,
   System.IOUtils,
   System.StrUtils,
@@ -31,6 +32,7 @@ uses
 
 type
   TSyncProgressEvent = procedure(const ATable: string; AInserted, ATotal: Integer; AIsNewTable: Boolean) of object;
+  TRestoreProgressEvent = procedure(const AStage: string; APercent: Integer) of object;
   TdmApp = class(TDataModule)
     FDConnection: TFDConnection;
     FDPhysSQLiteDriverLink1: TFDPhysSQLiteDriverLink;
@@ -40,16 +42,24 @@ type
   private
     FHttp: THTTPClient;
     FOnSyncProgress: TSyncProgressEvent;
+    FOnRestoreProgress: TRestoreProgressEvent;
     FRequestLogOk: Integer;
     FSkipConnectionCheck: Integer;
     FLastVendas1NumDocs: TStringList;
     FSyncDownloadLastTick: Cardinal;
+    FRestoreDownloadLastTick: Cardinal;
     FSyncApplyLastTick: Cardinal;
     function BuildUrl(const AEndpoint: string): string;
     function DatabaseFileName: string;
     function ExecuteJsonArrayRequest(const AEndpoint: string; ABody: TJSONObject): TJSONArray;
     function ExecuteJsonObjectRequest(const AEndpoint: string; ABody: TJSONObject): TJSONObject;
     function IsTransientHttpError(const AMessage: string): Boolean;
+    function DecodeCompressedScript(const AEncodedScript: string): string;
+    function CompressFileToBase64ZLib(const AFileName: string): string;
+    function DecompressBase64ZLibToBytes(const AEncodedData: string): TBytes;
+    function IsDatabaseEmpty(FCodRepresentante: String): Boolean;
+    function TryRestoreSQLiteBackup(ACodRepresentante: Integer; const ALogin, ASenha, AUserJson: string): Boolean;
+    procedure UploadSQLiteBackup(ACodRepresentante: Integer);
     function NormalizeSyncStartDate(const AValue: string): string;
     function GetJsonValueCI(AObj: TJSONObject; const AName: string): TJSONValue;
     function GetApiBaseUrl: string;
@@ -63,6 +73,7 @@ type
     procedure LogSyncSql(const ATable, ASql: string; AParams: TFDParams);
     procedure LogSyncSqlError(const ATable, ASql: string; AParams: TFDParams; const AError: string);
     procedure HttpReceiveData(const Sender: TObject; AContentLength, AReadCount: Int64; var AAbort: Boolean);
+    procedure RestoreReceiveData(const Sender: TObject; AContentLength, AReadCount: Int64; var AAbort: Boolean);
     procedure EnsureDatabase;
     procedure ExecSQL(const ASql: string; const AParams: array of Variant);
     procedure ApplySqliteScript(const AScript: string);
@@ -73,11 +84,14 @@ type
     procedure OpenConnection;
     procedure SeedConfig;
     procedure SetApiBaseUrl(const AValue: string);
+    procedure ReportRestoreProgress(const AStage: string; APercent: Integer);
     function TableExists(const ATableName: string): Boolean;
     function SqliteTypeToFieldType(const ASqliteType: string): TFieldType;
   public
     procedure AddRequestLog(const AMethod, AEndpoint, ARequest, AResponse: string; AStatusCode: Integer);
+    procedure SaveLoginCredentials(const ABaseUrl, ALogin, ASenha: string);
     property OnSyncProgress: TSyncProgressEvent read FOnSyncProgress write FOnSyncProgress;
+    property OnRestoreProgress: TRestoreProgressEvent read FOnRestoreProgress write FOnRestoreProgress;
     procedure ClearSyncData;
     function ShouldClearSyncData(out AReason: string): Boolean;
     function CountPendingPedidos: Integer;
@@ -106,7 +120,9 @@ type
     function GetAppState(out AScreen: string; out APedidoId: Integer; out AExtraJson: string): Boolean;
     procedure EnviarGeolocalizacao(ACodRepresentante: Integer; const AUsuario: string; ALatitude, ALongitude: Double);
     procedure RegistrarGeolocalizacao(ACodRepresentante: Integer; ALatitude, ALongitude, AVelocidadeKmh: Double);
-    procedure EnviarPendentesBackground;
+    procedure EnviarPendentesBackground; overload;
+    procedure EnviarPendentesBackground(const AOnProgress: TSyncProgressEvent); overload;
+    function GetGeocodeProgress(const ACodRepresentante: string): TJSONObject;
     property ApiBaseUrl: string read GetApiBaseUrl write SetApiBaseUrl;
   end;
 
@@ -304,6 +320,16 @@ const
     ' sent_at TEXT,' +
     ' last_error TEXT' +
     ');' +
+    'CREATE TABLE IF NOT EXISTS representante_km_diario (' +
+    ' cod_representante INTEGER NOT NULL,' +
+    ' data TEXT NOT NULL,' +
+    ' km_rodado REAL NOT NULL DEFAULT 0,' +
+    ' qtd_pontos INTEGER NOT NULL DEFAULT 0,' +
+    ' qtd_segmentos INTEGER NOT NULL DEFAULT 0,' +
+    ' inicio TEXT,' +
+    ' fim TEXT,' +
+    ' PRIMARY KEY(cod_representante, data)' +
+    ');' +
     'CREATE TABLE IF NOT EXISTS cliente_visitas (' +
     ' cod_cliente INTEGER NOT NULL,' +
     ' data TEXT NOT NULL,' +
@@ -311,11 +337,23 @@ const
     ' enviado TEXT DEFAULT ''N'',' +
     ' motivo_n_venda BLOB,' +
     ' valor_pedido REAL,' +
+    ' status_visita TEXT,' +
     ' datahora TEXT NOT NULL,' +
     ' cod_representante INTEGER,' +
     ' sent_at TEXT,' +
     ' last_error TEXT,' +
     ' PRIMARY KEY(cod_cliente, datahora)' +
+    ');' +
+    'CREATE TABLE IF NOT EXISTS cr1 (' +
+    ' titulo TEXT,' +
+    ' sequencia INTEGER,' +
+    ' cod_cliente INTEGER NOT NULL,' +
+    ' dtaven TEXT,' +
+    ' valor REAL,' +
+    ' valor_recebido REAL,' +
+    ' dtarec TEXT,' +
+    ' cod_fop INTEGER,' +
+    ' nr_documento TEXT' +
     ');' +
     'CREATE TABLE IF NOT EXISTS fop (' +
     ' cod_fop INTEGER PRIMARY KEY NOT NULL,' +
@@ -1134,28 +1172,63 @@ var
   function ColumnExists(const ATableName, AColumnName: string): Boolean;
   var
     LQuery: TFDQuery;
+    LSchema: string;
+    LColumnToken: string;
   begin
     Result := False;
     LQuery := TFDQuery.Create(nil);
     try
       LQuery.Connection := FDConnection;
-      LQuery.SQL.Text := 'PRAGMA table_info("' + ATableName + '")';
+      try
+        LQuery.SQL.Text := 'PRAGMA table_info("' + ATableName + '")';
+        LQuery.Open;
+        while not LQuery.Eof do
+        begin
+          if SameText(Trim(LQuery.FieldByName('name').AsString), Trim(AColumnName)) then
+            Exit(True);
+          LQuery.Next;
+        end;
+        LQuery.Close;
+      except
+        LQuery.Close;
+      end;
+
+      // Alguns dispositivos retornam metadados incompletos pelo PRAGMA via
+      // FireDAC. A definicao SQL evita executar ALTER TABLE duplicado.
+      LQuery.SQL.Text :=
+        'select sql from sqlite_master where type = ''table'' and lower(name) = lower(:table_name)';
+      LQuery.ParamByName('table_name').AsString := ATableName;
       LQuery.Open;
-      while not LQuery.Eof do
+      if not LQuery.IsEmpty then
       begin
-        if SameText(LQuery.FieldByName('name').AsString, AColumnName) then
-          Exit(True);
-        LQuery.Next;
+        LSchema := LowerCase(LQuery.Fields[0].AsString);
+        LSchema := StringReplace(LSchema, #13, ' ', [rfReplaceAll]);
+        LSchema := StringReplace(LSchema, #10, ' ', [rfReplaceAll]);
+        LSchema := StringReplace(LSchema, ',', ' ', [rfReplaceAll]);
+        LSchema := StringReplace(LSchema, '(', ' ', [rfReplaceAll]);
+        LSchema := StringReplace(LSchema, ')', ' ', [rfReplaceAll]);
+        LSchema := StringReplace(LSchema, '"', ' ', [rfReplaceAll]);
+        LSchema := ' ' + LSchema + ' ';
+        LColumnToken := ' ' + LowerCase(Trim(AColumnName)) + ' ';
+        Result := Pos(LColumnToken, LSchema) > 0;
       end;
     finally
       LQuery.Free;
     end;
   end;
-
   procedure AddColumnIfMissing(const ATableName, AColumnName, AColumnSql: string);
   begin
-    if not ColumnExists(ATableName, AColumnName) then
+    if ColumnExists(ATableName, AColumnName) then
+      Exit;
+
+    try
       FDConnection.ExecSQL('alter table "' + ATableName + '" add column ' + AColumnSql);
+    except
+      on E: Exception do
+        // Alguns SQLite antigos retornam PRAGMA sem a coluna recem criada.
+        if Pos('duplicate column name', LowerCase(E.Message)) = 0 then
+          raise;
+    end;
   end;
 begin
   LStatements := TStringList.Create;
@@ -1167,16 +1240,34 @@ begin
     AddColumnIfMissing('api_session', 'senha', 'senha TEXT');
     AddColumnIfMissing('cliente', 'latitude', 'latitude REAL');
     AddColumnIfMissing('cliente', 'longitude', 'longitude REAL');
+    AddColumnIfMissing('cliente', 'dta_ultima_venda', 'dta_ultima_venda TEXT');
+    AddColumnIfMissing('cliente', 'media_valor_pedido', 'media_valor_pedido REAL default 0');
     AddColumnIfMissing('produto', 'promocao', 'promocao TEXT');
     AddColumnIfMissing('produto', 'preco_promocao', 'preco_promocao REAL');
     AddColumnIfMissing('produto_representante', 'qtd_promocao', 'qtd_promocao REAL');
     AddColumnIfMissing('produto_representante', 'preco_promocao', 'preco_promocao REAL');
     AddColumnIfMissing('representante_localizacao', 'enviado', 'enviado TEXT default ''N''');
     AddColumnIfMissing('representante_localizacao', 'sent_at', 'sent_at TEXT');
+    AddColumnIfMissing('representante_localizacao', 'precisao_m', 'precisao_m REAL');
     AddColumnIfMissing('representante_localizacao', 'last_error', 'last_error TEXT');
+    FDConnection.ExecSQL('create table if not exists representante_km_diario (' +
+      'cod_representante INTEGER NOT NULL, data TEXT NOT NULL, ' +
+      'km_rodado REAL NOT NULL DEFAULT 0, qtd_pontos INTEGER NOT NULL DEFAULT 0, ' +
+      'qtd_segmentos INTEGER NOT NULL DEFAULT 0, inicio TEXT, fim TEXT, ' +
+      'primary key(cod_representante, data))');
     AddColumnIfMissing('cliente_visitas', 'enviado', 'enviado TEXT default ''N''');
     AddColumnIfMissing('cliente_visitas', 'sent_at', 'sent_at TEXT');
     AddColumnIfMissing('cliente_visitas', 'last_error', 'last_error TEXT');
+    AddColumnIfMissing('cliente_visitas', 'motivo_n_venda', 'motivo_n_venda BLOB');
+    AddColumnIfMissing('cliente_visitas', 'status_visita', 'status_visita TEXT');
+    FDConnection.ExecSQL('create index if not exists idx_cliente_nome on cliente(nom_cliente)');
+    FDConnection.ExecSQL('create index if not exists idx_cliente_fantasia on cliente(nom_fantasia)');
+    FDConnection.ExecSQL('create index if not exists idx_cliente_cidade on cliente(cod_cidade)');
+    FDConnection.ExecSQL('create index if not exists idx_cidades_codigo on cidades(cod_cidade)');
+    FDConnection.ExecSQL('create index if not exists idx_vendas1_cliente on vendas1(cod_cliente)');
+    FDConnection.ExecSQL('create index if not exists idx_vendas1_cliente_emissao on vendas1(cod_cliente, dta_emissao)');
+    FDConnection.ExecSQL('create index if not exists idx_vendas1_cliente_dtadoc on vendas1(cod_cliente, dtadoc)');
+    FDConnection.ExecSQL('create index if not exists idx_cr1_cliente_aberto on cr1(cod_cliente, dtarec, dtaven)');
   finally
     LStatements.Free;
   end;
@@ -1436,6 +1527,41 @@ begin
             (Pos('sockettimeoutexception', LMsg) > 0) or
             (Pos('eof', LMsg) > 0);
 end;
+function TdmApp.GetGeocodeProgress(const ACodRepresentante: string): TJSONObject;
+var
+  LHttp: THTTPClient;
+  LBody: TJSONObject;
+  LRequest: TStringStream;
+  LResponse: IHTTPResponse;
+  LValue: TJSONValue;
+begin
+  Result := nil;
+  LHttp := THTTPClient.Create;
+  LBody := TJSONObject.Create;
+  try
+    LBody.AddPair('codRepresentante', ACodRepresentante);
+    LRequest := TStringStream.Create(LBody.ToJSON, TEncoding.UTF8);
+    try
+      LHttp.ConnectionTimeout := 1500;
+      LHttp.ResponseTimeout := 2500;
+      LResponse := LHttp.Post(BuildUrl('api/geocode_progress'), LRequest);
+      if (LResponse.StatusCode < 200) or (LResponse.StatusCode >= 300) then
+        Exit;
+      LValue := TJSONObject.ParseJSONValue(LResponse.ContentAsString(TEncoding.UTF8));
+      if LValue is TJSONObject then
+        Result := TJSONObject(LValue)
+      else
+        LValue.Free;
+    finally
+      LRequest.Free;
+    end;
+  except
+    Result := nil;
+  end;
+  LBody.Free;
+  LHttp.Free;
+end;
+
 function TdmApp.ExecuteJsonObjectRequest(const AEndpoint: string; ABody: TJSONObject): TJSONObject;
 const
   CSyncScriptMaxAttempts = 3;
@@ -1468,8 +1594,7 @@ begin
       begin
         FSyncDownloadLastTick := 0;
         FHttp.OnReceiveData := HttpReceiveData;
-        if LAttempt > 1 then
-          FOnSyncProgress('__script_download', 0, 0, False);
+        FOnSyncProgress('__script_download', 0, 0, False);
       end;
 
       try
@@ -1544,6 +1669,303 @@ begin
   FOnSyncProgress('__script_download', LReadKb, LTotalKb, False);
 end;
 
+procedure TdmApp.RestoreReceiveData(const Sender: TObject; AContentLength, AReadCount: Int64; var AAbort: Boolean);
+var
+  LNow: Cardinal;
+  LPercent: Integer;
+begin
+  if not Assigned(FOnRestoreProgress) then
+    Exit;
+
+  LNow := TThread.GetTickCount;
+  if (AContentLength > 0) and (AReadCount < AContentLength) and
+     (FRestoreDownloadLastTick <> 0) and ((LNow - FRestoreDownloadLastTick) < 180) then
+    Exit;
+  FRestoreDownloadLastTick := LNow;
+
+  if AContentLength > 0 then
+  begin
+    LPercent := EnsureRange(Round((AReadCount * 100.0) / AContentLength), 0, 100);
+    ReportRestoreProgress('Baixando backup: ' + LPercent.ToString + '%',
+      5 + Round(LPercent * 30.0 / 100.0));
+  end
+  else
+    ReportRestoreProgress('Baixando backup...', 5);
+end;
+function TdmApp.DecodeCompressedScript(const AEncodedScript: string): string;
+var
+  LCompressed: TBytes;
+  LDecompressed: TBytes;
+  LInput: TBytesStream;
+  LOutput: TBytesStream;
+  LDecompress: TDecompressionStream;
+begin
+  LCompressed := TNetEncoding.Base64.DecodeStringToBytes(AEncodedScript);
+  LInput := TBytesStream.Create(LCompressed);
+  LOutput := TBytesStream.Create;
+  try
+    LDecompress := TDecompressionStream.Create(LInput);
+    try
+      LOutput.CopyFrom(LDecompress, 0);
+    finally
+      LDecompress.Free;
+    end;
+
+    SetLength(LDecompressed, LOutput.Size);
+    if LOutput.Size > 0 then
+      Move(LOutput.Bytes[0], LDecompressed[0], LOutput.Size);
+    Result := TEncoding.UTF8.GetString(LDecompressed);
+  finally
+    LOutput.Free;
+    LInput.Free;
+  end;
+end;
+function TdmApp.CompressFileToBase64ZLib(const AFileName: string): string;
+var
+  LBytes: TBytes;
+  LCompressedBytes: TBytes;
+  LOutput: TBytesStream;
+  LCompressor: TCompressionStream;
+begin
+  Result := '';
+  if (Trim(AFileName) = '') or (not TFile.Exists(AFileName)) then
+    Exit;
+
+  LBytes := TFile.ReadAllBytes(AFileName);
+  LOutput := TBytesStream.Create;
+  try
+    LCompressor := TCompressionStream.Create(clMax, LOutput);
+    try
+      if Length(LBytes) > 0 then
+        LCompressor.WriteBuffer(LBytes[0], Length(LBytes));
+    finally
+      LCompressor.Free;
+    end;
+
+    SetLength(LCompressedBytes, LOutput.Size);
+    if LOutput.Size > 0 then
+      Move(LOutput.Bytes[0], LCompressedBytes[0], LOutput.Size);
+    Result := TNetEncoding.Base64.EncodeBytesToString(LCompressedBytes);
+  finally
+    LOutput.Free;
+  end;
+end;
+
+function TdmApp.DecompressBase64ZLibToBytes(const AEncodedData: string): TBytes;
+var
+  LCompressed: TBytes;
+  LInput: TBytesStream;
+  LOutput: TBytesStream;
+  LDecompress: TDecompressionStream;
+begin
+  SetLength(Result, 0);
+  if Trim(AEncodedData) = '' then
+    Exit;
+
+  LCompressed := TNetEncoding.Base64.DecodeStringToBytes(AEncodedData);
+  LInput := TBytesStream.Create(LCompressed);
+  LOutput := TBytesStream.Create;
+  try
+    LDecompress := TDecompressionStream.Create(LInput);
+    try
+      LOutput.CopyFrom(LDecompress, 0);
+    finally
+      LDecompress.Free;
+    end;
+
+    SetLength(Result, LOutput.Size);
+    if LOutput.Size > 0 then
+      Move(LOutput.Bytes[0], Result[0], LOutput.Size);
+  finally
+    LOutput.Free;
+    LInput.Free;
+  end;
+end;
+
+function TdmApp.IsDatabaseEmpty(FCodRepresentante: String): Boolean;
+var
+  LClientes: Int64;
+  LRepresentantes: Int64;
+begin
+  Result := True;
+  if not FDConnection.Connected then
+    Exit;
+
+  try
+    if not TableExists('cliente') or not TableExists('produto') or not TableExists('representante') then
+      Exit(True);
+
+    LClientes := GetScalarInt64('select count(*) from cliente where id_representante = '+FCodRepresentante, []);
+    LRepresentantes := GetScalarInt64('select count(*) from representante where id = '+FCodRepresentante, []);
+    Result := (LClientes = 0) or (LRepresentantes = 0);
+    if Result then
+      LogRequest('SQLITE_BACKUP', 'DB_INCOMPLETO', '',
+        'representante=' + LRepresentantes.ToString + ' cliente=' + LClientes.ToString, 0);
+  except
+    Result := True;
+  end;
+end;
+
+function TdmApp.TryRestoreSQLiteBackup(ACodRepresentante: Integer; const ALogin, ASenha, AUserJson: string): Boolean;
+var
+  LBody: TJSONObject;
+  LResp: TJSONObject;
+  LBackupValue: TJSONValue;
+  LBytes: TBytes;
+  LDbPath: string;
+  LBackupPath: string;
+  LOldReceiveData: TReceiveDataEvent;
+begin
+  Result := False;
+  if ACodRepresentante <= 0 then
+    Exit;
+  if not IsDatabaseEmpty(IntToStr(ACodRepresentante)) then
+    Exit;
+
+
+  ReportRestoreProgress('Restaurando backup...', 5);
+  LogRequest('SQLITE_BACKUP', 'RESTORE_START', ACodRepresentante.ToString, 'Banco vazio, buscando backup', 0);
+
+  LBody := TJSONObject.Create;
+  try
+    try
+      LBody.AddPair('cod_representante', TJSONNumber.Create(ACodRepresentante));
+      LBody.AddPair('login', ALogin);
+      LBody.AddPair('senha', ASenha);
+      FRestoreDownloadLastTick := 0;
+      LOldReceiveData := FHttp.OnReceiveData;
+      FHttp.OnReceiveData := RestoreReceiveData;
+      try
+        LResp := ExecuteJsonObjectRequest('api/representante/sqlite_backup/get', LBody);
+      finally
+        FHttp.OnReceiveData := LOldReceiveData;
+      end;
+      try
+        if not LResp.GetValue<Boolean>('ok', False) then
+          begin
+          LogRequest('SQLITE_BACKUP', 'RESTORE_NOT_FOUND', ACodRepresentante.ToString, LResp.ToJSON, 0);
+          Exit;
+        end;
+        ReportRestoreProgress('Backup localizado', 25);
+        LBackupValue := LResp.GetValue('backup_base64');
+        if not Assigned(LBackupValue) or (Trim(LBackupValue.Value) = '') then
+          Exit;
+
+        ReportRestoreProgress('Descompactando backup...', 45);
+        LBytes := DecompressBase64ZLibToBytes(LBackupValue.Value);
+        if Length(LBytes) = 0 then
+          Exit;
+
+        ReportRestoreProgress('Gravando banco local...', 65);
+        LDbPath := DatabaseFileName;
+        LBackupPath := LDbPath + '.empty_' + FormatDateTime('yyyymmddhhnnss', Now) + '.bak';
+        FDConnection.Connected := False;
+        try
+          if TFile.Exists(LDbPath) then
+            TFile.Move(LDbPath, LBackupPath);
+          TFile.WriteAllBytes(LDbPath, LBytes);
+        except
+          if TFile.Exists(LBackupPath) and not TFile.Exists(LDbPath) then
+            TFile.Move(LBackupPath, LDbPath);
+          raise;
+        end;
+
+        OpenConnection;
+        ReportRestoreProgress('Validando dados...', 82);
+        EnsureDatabase;
+        SeedConfig;
+        ExecSQL(
+          'insert into api_session (id, base_url, login, senha, user_json, last_login_at, last_error) ' +
+          'values (1, :p0, :p1, :p2, :p3, datetime(''now''), null) ' +
+          'on conflict(id) do update set base_url = excluded.base_url, login = excluded.login, ' +
+          'senha = excluded.senha, user_json = excluded.user_json, ' +
+          'last_login_at = excluded.last_login_at, last_error = null',
+          [ApiBaseUrl, ALogin, ASenha, AUserJson]
+        );
+        ExecSQL(
+          'insert into app_config (key, value, updated_at) values (:p0, :p1, datetime(''now'')) ' +
+          'on conflict(key) do update set value = excluded.value, updated_at = excluded.updated_at',
+          ['cod_representante', ACodRepresentante.ToString]
+        );
+        Result := not IsDatabaseEmpty(IntToStr(ACodRepresentante));
+        if Result then
+          ReportRestoreProgress('Backup restaurado', 100);
+        if Result then
+          LogRequest('SQLITE_BACKUP', 'RESTORE_OK', ACodRepresentante.ToString, 'Backup restaurado', 0)
+        else
+          LogRequest('SQLITE_BACKUP', 'RESTORE_EMPTY_AFTER', ACodRepresentante.ToString, 'Banco continuou vazio apos restore', 0);
+      finally
+        LResp.Free;
+      end;
+    except
+      on E: Exception do
+      begin
+        try
+          OpenConnection;
+          EnsureDatabase;
+          SeedConfig;
+          LogRequest('SQLITE_BACKUP', 'RESTORE_ERROR', ACodRepresentante.ToString, E.Message, 0);
+        except
+        end;
+        Result := False;
+      end;
+    end;
+  finally
+    LBody.Free;
+  end;
+end;
+procedure TdmApp.UploadSQLiteBackup(ACodRepresentante: Integer);
+var
+  LBody: TJSONObject;
+  LResp: TJSONObject;
+  LDbPath: string;
+  LBackupBase64: string;
+  LSize: Int64;
+begin
+  if ACodRepresentante <= 0 then
+    Exit;
+
+  LDbPath := DatabaseFileName;
+  if not TFile.Exists(LDbPath) then
+    Exit;
+  if not IsDatabaseEmpty(IntToStr(ACodRepresentante)) then
+    Exit;
+
+  try
+    if FDConnection.Connected and (not FDConnection.InTransaction) then
+    begin
+      try
+        FDConnection.ExecSQL('PRAGMA wal_checkpoint(FULL)');
+      except
+      end;
+    end;
+
+    LSize := TFile.GetSize(LDbPath);
+    if LSize <= 0 then
+      Exit;
+
+    LBackupBase64 := CompressFileToBase64ZLib(LDbPath);
+    if Trim(LBackupBase64) = '' then
+      Exit;
+
+    LBody := TJSONObject.Create;
+    try
+      LBody.AddPair('cod_representante', TJSONNumber.Create(ACodRepresentante));
+      LBody.AddPair('login', GetScalarAsString('select coalesce(login, '''') from api_session where id = 1', []));
+      LBody.AddPair('senha', GetScalarAsString('select coalesce(senha, '''') from api_session where id = 1', []));
+      LBody.AddPair('versao', AppVersionName);
+      LBody.AddPair('tamanho', TJSONNumber.Create(LSize));
+      LBody.AddPair('backup_base64', LBackupBase64);
+      LResp := ExecuteJsonObjectRequest('api/representante/sqlite_backup/save', LBody);
+      LResp.Free;
+    finally
+      LBody.Free;
+    end;
+  except
+    on E: Exception do
+      LogRequest('SQLITE_BACKUP', 'UPLOAD_ERROR', ACodRepresentante.ToString, E.Message, 0);
+  end;
+end;
 function TdmApp.NormalizeSyncStartDate(const AValue: string): string;
 var
   LValue: string;
@@ -1601,31 +2023,15 @@ begin
 end;
 
 procedure TdmApp.EnviarGeolocalizacao(ACodRepresentante: Integer; const AUsuario: string; ALatitude, ALongitude: Double);
-var
-  LBody: TJSONObject;
-  LResponse: TJSONObject;
 begin
-  LBody := TJSONObject.Create;
-  try
-    LBody.AddPair('cod_representante', TJSONNumber.Create(ACodRepresentante));
-    LBody.AddPair('usuario', AUsuario);
-    LBody.AddPair('data_hora', FormatDateTime('yyyy-mm-dd hh:nn:ss', Now));
-    LBody.AddPair('latitude', TJSONNumber.Create(ALatitude));
-    LBody.AddPair('longitude', TJSONNumber.Create(ALongitude));
-
-    LResponse := ExecuteJsonObjectRequest('api/geolocalizacao', LBody);
-    LResponse.Free;
-  finally
-    LBody.Free;
-  end;
+  // Envio direto para API desativado; GPS fica local e sobe apenas na sincronizacao.
+  RegistrarGeolocalizacao(ACodRepresentante, ALatitude, ALongitude, 0);
 end;
-
 procedure TdmApp.RegistrarGeolocalizacao(ACodRepresentante: Integer; ALatitude, ALongitude, AVelocidadeKmh: Double);
 const
   CEarthRadiusMeters = 6371000.0;
   CVisitRadiusMeters = 100.0;
   CVisitMinMinutes = 30.0;
-  CMinLocationChangeMeters = 5.0;
 var
   LDataHora: string;
   LData: string;
@@ -1640,7 +2046,8 @@ var
   LNearestCliente: Integer;
   LNearestDistance: Double;
   LRecentVisits: Int64;
-  LShouldRegisterLocation: Boolean;
+  LSegmentMeters: Double;
+  LSegmentAccepted: Integer;
 
   function DistanceMeters(ALat1, ALon1, ALat2, ALon2: Double): Double;
   var
@@ -1669,6 +2076,8 @@ begin
   LData := FormatDateTime('yyyy-mm-dd', Date);
   LNearestCliente := 0;
   LNearestDistance := MaxDouble;
+  LSegmentMeters := 0;
+  LSegmentAccepted := 0;
 
   try
     TMonitor.Enter(Self);
@@ -1676,13 +2085,13 @@ begin
       if FDConnection.InTransaction then
         Exit;
 
-      LShouldRegisterLocation := True;
       LLastLocationQuery := TFDQuery.Create(nil);
       try
         LLastLocationQuery.Connection := FDConnection;
         LLastLocationQuery.SQL.Text :=
           'select latitude, longitude from representante_localizacao ' +
           'where cod_representante = :p0 ' +
+          'and date(datahora) = date(''now'', ''localtime'') ' +
           'order by id desc limit 1';
         LLastLocationQuery.ParamByName('p0').AsInteger := ACodRepresentante;
         LLastLocationQuery.Open;
@@ -1690,19 +2099,31 @@ begin
         begin
           LLastLat := LLastLocationQuery.FieldByName('latitude').AsFloat;
           LLastLon := LLastLocationQuery.FieldByName('longitude').AsFloat;
-          LShouldRegisterLocation :=
-            DistanceMeters(ALatitude, ALongitude, LLastLat, LLastLon) >= CMinLocationChangeMeters;
+          LSegmentMeters := DistanceMeters(ALatitude, ALongitude, LLastLat, LLastLon);
         end;
       finally
         LLastLocationQuery.Free;
       end;
 
-      if LShouldRegisterLocation then
+      begin
         ExecSQL(
           'insert into representante_localizacao (cod_representante, datahora, velocidade, latitude, longitude, enviado) ' +
           'values (:p0, :p1, :p2, :p3, :p4, ''N'')',
           [ACodRepresentante, LDataHora, AVelocidadeKmh, ALatitude, ALongitude]
         );
+        if (LSegmentMeters >= 5) and (LSegmentMeters <= 100000) and (AVelocidadeKmh <= 180) then
+          LSegmentAccepted := 1;
+        ExecSQL(
+          'insert or ignore into representante_km_diario ' +
+          '(cod_representante, data, km_rodado, qtd_pontos, qtd_segmentos, inicio, fim) ' +
+          'values (:p0, :p1, 0, 0, 0, :p2, :p2)',
+          [ACodRepresentante, LData, LDataHora]);
+        ExecSQL(
+          'update representante_km_diario set qtd_pontos = qtd_pontos + 1, fim = :p0, ' +
+          'km_rodado = km_rodado + :p1, qtd_segmentos = qtd_segmentos + :p2 ' +
+          'where cod_representante = :p3 and data = :p4',
+          [LDataHora, LSegmentMeters / 1000 * LSegmentAccepted, LSegmentAccepted, ACodRepresentante, LData]);
+      end;
 
       if AVelocidadeKmh < 1 then
       begin
@@ -1740,8 +2161,8 @@ begin
           if LRecentVisits = 0 then
             ExecSQL(
               'insert or ignore into cliente_visitas ' +
-              '(cod_cliente, data, vendeu, enviado, valor_pedido, datahora, cod_representante) ' +
-              'values (:p0, :p1, ''N'', ''N'', 0, :p2, :p3)',
+              '(cod_cliente, data, vendeu, enviado, valor_pedido, datahora, cod_representante, status_visita) ' +
+              'values (:p0, :p1, ''N'', ''N'', 0, :p2, :p3, ''Proximidade'')',
               [LNearestCliente, LData, LDataHora, ACodRepresentante]
             );
         end;
@@ -1754,15 +2175,21 @@ begin
     Exit;
   end;
 
-  if not FDConnection.InTransaction then
-    EnviarPendentesBackground;
+  // GPS/visitas ficam pendentes localmente; envio para API ocorre apenas na sincronizacao.
 end;
 
 procedure TdmApp.EnviarPendentesBackground;
+begin
+  EnviarPendentesBackground(nil);
+end;
+
+procedure TdmApp.EnviarPendentesBackground(const AOnProgress: TSyncProgressEvent);
 var
   LQuery: TFDQuery;
   LBody: TJSONObject;
   LResponse: TJSONObject;
+  LTotalPendentes: Integer;
+  LProcessados: Integer;
 begin
   if FDConnection.InTransaction then
     Exit;
@@ -1777,6 +2204,12 @@ begin
       LQuery := TFDQuery.Create(nil);
       try
         LQuery.Connection := FDConnection;
+        LTotalPendentes := GetScalarInt64(
+          'select min(100, (select count(*) from representante_localizacao where coalesce(enviado, ''N'') <> ''S'')) + ' +
+          'min(100, (select count(*) from cliente_visitas where coalesce(enviado, ''N'') <> ''S''))', []);
+        LProcessados := 0;
+        if Assigned(AOnProgress) then
+          AOnProgress('__geo_upload', LProcessados, LTotalPendentes, False);
 
         LQuery.SQL.Text :=
           'select id, cod_representante, datahora, velocidade, latitude, longitude ' +
@@ -1804,12 +2237,39 @@ begin
                 [E.Message, LQuery.FieldByName('id').AsLargeInt]);
           end;
           LBody.Free;
+          Inc(LProcessados);
+          if Assigned(AOnProgress) then
+            AOnProgress('__geo_upload', LProcessados, LTotalPendentes, False);
           LQuery.Next;
         end;
         LQuery.Close;
 
+        ExecSQL(
+          'update cliente_visitas set status_visita = case ' +
+          'when upper(cast(coalesce(motivo_n_venda, '''') as text)) like ''PROSPEC%'' then ''PROSPECCAO'' ' +
+          'when upper(cast(coalesce(motivo_n_venda, '''') as text)) like ''COBRAN%'' then ''COBRANCA'' ' +
+          'when upper(cast(coalesce(motivo_n_venda, '''') as text)) like ''RELACIONAMENTO%'' then ''RELACIONAMENTO'' ' +
+          'when upper(cast(coalesce(motivo_n_venda, '''') as text)) like ''POS-VENDA%'' then ''POS-VENDA'' ' +
+          'when upper(cast(coalesce(motivo_n_venda, '''') as text)) like ''VISITA IMPOSSIBILITADA%'' then ''VISITA IMPOSSIBILITADA'' ' +
+          'else status_visita end ' +
+          'where coalesce(enviado, ''N'') <> ''S'' and (' +
+          'upper(cast(coalesce(motivo_n_venda, '''') as text)) like ''PROSPEC%'' or ' +
+          'upper(cast(coalesce(motivo_n_venda, '''') as text)) like ''COBRAN%'' or ' +
+          'upper(cast(coalesce(motivo_n_venda, '''') as text)) like ''RELACIONAMENTO%'' or ' +
+          'upper(cast(coalesce(motivo_n_venda, '''') as text)) like ''POS-VENDA%'' or ' +
+          'upper(cast(coalesce(motivo_n_venda, '''') as text)) like ''VISITA IMPOSSIBILITADA%'')', []);
+        ExecSQL(
+          'update cliente_visitas set status_visita = case ' +
+          'when upper(cast(coalesce(motivo_n_venda, '''') as text)) like ''PROSPEC%'' then ''PROSPECCAO'' ' +
+          'when upper(cast(coalesce(motivo_n_venda, '''') as text)) like ''COBRAN%'' then ''COBRANCA'' ' +
+          'when upper(cast(coalesce(motivo_n_venda, '''') as text)) like ''RELACIONAMENTO%'' then ''RELACIONAMENTO'' ' +
+          'when upper(cast(coalesce(motivo_n_venda, '''') as text)) like ''POS-VENDA%'' then ''POS-VENDA'' ' +
+          'when upper(cast(coalesce(motivo_n_venda, '''') as text)) like ''VISITA IMPOSSIBILITADA%'' then ''VISITA IMPOSSIBILITADA'' ' +
+          'when upper(coalesce(vendeu, '''')) = ''S'' then ''Venda'' else ''PROXIMIDADE'' end ' +
+          'where trim(coalesce(status_visita, '''')) = '''' and coalesce(enviado, ''N'') <> ''S''', []);
+
         LQuery.SQL.Text :=
-          'select cod_cliente, data, vendeu, valor_pedido, datahora, cod_representante ' +
+          'select cod_cliente, data, vendeu, motivo_n_venda, valor_pedido, datahora, cod_representante, status_visita ' +
           'from cliente_visitas where coalesce(enviado, ''N'') <> ''S'' order by datahora limit 100';
         LQuery.Open;
         while not LQuery.Eof do
@@ -1819,7 +2279,14 @@ begin
             LBody.AddPair('cod_cliente', TJSONNumber.Create(LQuery.FieldByName('cod_cliente').AsInteger));
             LBody.AddPair('data', LQuery.FieldByName('data').AsString);
             LBody.AddPair('vendeu', LQuery.FieldByName('vendeu').AsString);
+            LBody.AddPair('motivo_n_venda', LQuery.FieldByName('motivo_n_venda').AsString);
             LBody.AddPair('valor_pedido', TJSONNumber.Create(LQuery.FieldByName('valor_pedido').AsFloat));
+            if Trim(LQuery.FieldByName('status_visita').AsString) <> '' then
+              LBody.AddPair('status_visita', LQuery.FieldByName('status_visita').AsString)
+            else if SameText(Trim(LQuery.FieldByName('vendeu').AsString), 'S') then
+              LBody.AddPair('status_visita', 'Venda')
+            else
+              LBody.AddPair('status_visita', 'PROXIMIDADE');
             LBody.AddPair('datahora', LQuery.FieldByName('datahora').AsString);
             LBody.AddPair('cod_representante', TJSONNumber.Create(LQuery.FieldByName('cod_representante').AsInteger));
             LResponse := ExecuteJsonObjectRequest('api/cliente_visita', LBody);
@@ -1834,6 +2301,44 @@ begin
                 [E.Message, LQuery.FieldByName('cod_cliente').AsInteger, LQuery.FieldByName('datahora').AsString]);
           end;
           LBody.Free;
+          Inc(LProcessados);
+          if Assigned(AOnProgress) then
+            AOnProgress('__geo_upload', LProcessados, LTotalPendentes, False);
+          LQuery.Next;
+        end;
+
+        // O resumo e enviado apenas no fluxo de sincronizacao; a API antiga pode ignorar a rota nova.
+        LQuery.SQL.Text :=
+          'select cod_representante, data, km_rodado, qtd_pontos, qtd_segmentos, inicio, fim ' +
+          'from representante_km_diario order by data, cod_representante';
+        LQuery.Open;
+        while not LQuery.Eof do
+        begin
+          LBody := TJSONObject.Create;
+          try
+            LBody.AddPair('cod_representante',
+              TJSONNumber.Create(LQuery.FieldByName('cod_representante').AsInteger));
+            LBody.AddPair('data', LQuery.FieldByName('data').AsString);
+            LBody.AddPair('km_rodado',
+              TJSONNumber.Create(LQuery.FieldByName('km_rodado').AsFloat));
+            LBody.AddPair('qtd_pontos',
+              TJSONNumber.Create(LQuery.FieldByName('qtd_pontos').AsInteger));
+            LBody.AddPair('qtd_segmentos',
+              TJSONNumber.Create(LQuery.FieldByName('qtd_segmentos').AsInteger));
+            if Trim(LQuery.FieldByName('inicio').AsString) <> '' then
+              LBody.AddPair('inicio', LQuery.FieldByName('inicio').AsString);
+            if Trim(LQuery.FieldByName('fim').AsString) <> '' then
+              LBody.AddPair('fim', LQuery.FieldByName('fim').AsString);
+            try
+              LResponse := ExecuteJsonObjectRequest('api/representante_km_diario', LBody);
+              LResponse.Free;
+            except
+              on E: Exception do
+                ;
+            end;
+          finally
+            LBody.Free;
+          end;
           LQuery.Next;
         end;
       finally
@@ -2163,6 +2668,46 @@ begin
   end;
 end;
 
+procedure TdmApp.SaveLoginCredentials(const ABaseUrl, ALogin, ASenha: string);
+var
+  LBaseUrl: string;
+  LLogin: string;
+  LSenha: string;
+  LSavedLogin: string;
+begin
+  LBaseUrl := Trim(ABaseUrl);
+  LLogin := Trim(ALogin);
+  LSenha := Trim(ASenha);
+  if (LBaseUrl = '') or (LLogin = '') or (LSenha = '') then
+    Exit;
+
+  try
+    if not FDConnection.Connected then
+      OpenConnection;
+    EnsureDatabase;
+    SeedConfig;
+    FDConnection.ExecSQL(
+      'insert into api_session (id, base_url, login, senha, last_login_at, last_error) ' +
+      'values (1, :p0, :p1, :p2, datetime(''now''), null) ' +
+      'on conflict(id) do update set base_url = excluded.base_url, login = excluded.login, ' +
+      'senha = excluded.senha, last_login_at = excluded.last_login_at, last_error = null',
+      [LBaseUrl, LLogin, LSenha]);
+    ApiBaseUrlOverride := LBaseUrl;
+    SetAppConfigValue('api_base_url', LBaseUrl);
+    SetAppConfigValue('ultimo_login_base_url', LBaseUrl);
+    SetAppConfigValue('ultimo_login_usuario', LLogin);
+    SetAppConfigValue('ultimo_login_senha', LSenha);
+
+    LSavedLogin := Trim(FDConnection.ExecSQLScalar(
+      'select coalesce(login, '''') from api_session where id = 1'));
+    if not SameText(LSavedLogin, LLogin) then
+      raise Exception.Create('Nao foi possivel confirmar a gravacao do login local.');
+    AddRequestLog('LOGIN', 'SAVE_LOCAL', LLogin, 'OK', 200);
+  except
+    on E: Exception do
+      AddRequestLog('LOGIN', 'SAVE_LOCAL', LLogin, E.Message, 500);
+  end;
+end;
 function TdmApp.Login(const ALogin, ASenha: string): TJSONObject;
 var
   LBody: TJSONObject;
@@ -2182,6 +2727,7 @@ var
   LNewRepVal: TJSONValue;
   LOldRep: Integer;
   LNewRep: Integer;
+  LRestoredBackup: Boolean;
   function ExtractRepId(AObj: TJSONObject): Integer;
   var
     V: TJSONValue;
@@ -2200,6 +2746,7 @@ begin
   LNewRep := 0;
   LOldLogin := '';
   LOldBaseUrl := '';
+  LRestoredBackup := False;
 
   // usuario/representante anterior gravado na sessao local
   try
@@ -2273,18 +2820,49 @@ begin
     raise Exception.Create('Existem pedidos pendentes de envio. Sincronize antes de trocar o usu?rio.');
   end;
 
-  // trocou base/representante -> limpa dados locais sincronizados e pedidos locais
-  if LBaseChanged or LRepChanged then
+  // trocou usuario/base/representante -> limpa dados locais do usuario anterior
+  if LLoginChanged or LBaseChanged or LRepChanged then
+  begin
+    ExecSQL('delete from representante_localizacao', []);
+    ExecSQL('delete from cliente_visitas', []);
+    ExecSQL('delete from representante_km_diario', []);
+  end;
+  // Ao trocar usuario, base ou representante, inicia a nova sessao sem os
+  // dados sincronizados da sessao anterior.
+  if LLoginChanged or LBaseChanged or LRepChanged then
   begin
     ClearSyncData;
     ExecSQL('delete from outbound_pedido_item', []);
     ExecSQL('delete from outbound_pedido', []);
   end;
 
+  // O backup precisa ser testado depois da limpeza.
+  if (LNewRep > 0) and (LLoginChanged or LBaseChanged or LRepChanged) and
+     IsDatabaseEmpty(IntToStr(LNewRep)) then
+  begin
+    LRestoredBackup := TryRestoreSQLiteBackup(LNewRep, ALogin, ASenha, Result.ToJSON);
+    if LRestoredBackup then
+    begin
+      LOldLogin := ALogin;
+      LOldBaseUrl := ApiBaseUrl;
+      LOldRep := LNewRep;
+    end;
+  end;
+
   ExecSQL(
-    'update api_session set base_url = :p0, login = :p1, senha = :p2, user_json = :p3, last_login_at = datetime(''now''), last_error = null where id = 1',
-    [ApiBaseUrl, ALogin, ASenha, Result.ToJSON]
+    'insert into api_session (id, base_url, login, senha, user_json, last_login_at, last_error) ' +
+          'values (1, :p0, :p1, :p2, :p3, datetime(''now''), null) ' +
+          'on conflict(id) do update set base_url = excluded.base_url, login = excluded.login, ' +
+          'senha = excluded.senha, user_json = excluded.user_json, ' +
+          'last_login_at = excluded.last_login_at, last_error = null',
+          [ApiBaseUrl, ALogin, ASenha, Result.ToJSON]
   );
+
+  // Mantem as credenciais tambem na configuracao local. A tela de login usa
+  // estes valores como contingencia caso a sessao seja recriada na inicializacao.
+  SetAppConfigValue('ultimo_login_base_url', ApiBaseUrl);
+  SetAppConfigValue('ultimo_login_usuario', ALogin);
+  SetAppConfigValue('ultimo_login_senha', ASenha);
 
   if LNewRep > 0 then
     ExecSQL(
@@ -2991,6 +3569,7 @@ begin
   ExecSQL('insert or ignore into sync_table_state (table_name) values (:p0)', ['subcategoria']);
   ExecSQL('insert or ignore into sync_table_state (table_name) values (:p0)', ['vendas1']);
   ExecSQL('insert or ignore into sync_table_state (table_name) values (:p0)', ['vendas2']);
+  ExecSQL('insert or ignore into sync_table_state (table_name) values (:p0)', ['cr1']);
   ExecSQL('insert or ignore into sync_table_state (table_name) values (:p0)', ['fop']);
   ExecSQL('insert or ignore into sync_table_state (table_name) values (:p0)', ['fop_prazo']);
   ExecSQL('insert or ignore into sync_table_state (table_name) values (:p0)', ['prazo']);
@@ -2999,6 +3578,12 @@ begin
   ExecSQL('insert or ignore into sync_table_state (table_name) values (:p0)', ['grupo_representante']);
   ExecSQL('insert or ignore into sync_table_state (table_name) values (:p0)', ['produto_representante_inativos']);
   ExecSQL('insert or ignore into sync_table_state (table_name) values (:p0)', ['prazo_representante']);
+end;
+
+procedure TdmApp.ReportRestoreProgress(const AStage: string; APercent: Integer);
+begin
+  if Assigned(FOnRestoreProgress) then
+    FOnRestoreProgress(AStage, EnsureRange(APercent, 0, 100));
 end;
 
 procedure TdmApp.SetApiBaseUrl(const AValue: string);
@@ -3532,6 +4117,9 @@ var
   LStats: TJSONArray;
   LStatObj: TJSONObject;
   LScriptValue: TJSONValue;
+  LScriptOriginalBytesValue: TJSONValue;
+  LScriptOriginalBytes: Int64;
+  LScriptOriginalKb: Integer;
   LScript: string;
   LTableName: string;
   I: Integer;
@@ -3571,6 +4159,7 @@ begin
     if Trim(ACodRepresentante) <> '' then
       LBody.AddPair('codRepresentante', ACodRepresentante);
     LBody.AddPair('versao', AppVersionName);
+    LBody.AddPair('scriptEncoding', 'zlib-base64');
 
     LTablesJson := TJSONArray.Create;
     LSchema := TJSONObject.Create;
@@ -3595,11 +4184,33 @@ begin
       FOnSyncProgress('__script_download', 3, 5, True);
     LResp := ExecuteJsonObjectRequest('api/sync_script', LBody);
     try
-      LScriptValue := LResp.GetValue('script');
-      if not Assigned(LScriptValue) then
-        raise Exception.Create('Resposta da API sem script de sincronizacao');
+      if Assigned(FOnSyncProgress) then
+      begin
+        LScriptOriginalBytesValue := LResp.GetValue('scriptOriginalBytes');
+        if Assigned(LScriptOriginalBytesValue) and
+           TryStrToInt64(Trim(LScriptOriginalBytesValue.Value), LScriptOriginalBytes) and
+           (LScriptOriginalBytes > 0) then
+        begin
+          if LScriptOriginalBytes > (Int64(MaxInt) * 1024) then
+            LScriptOriginalKb := MaxInt
+          else
+            LScriptOriginalKb := Integer((LScriptOriginalBytes + 1023) div 1024);
+          if LScriptOriginalKb <= 0 then
+            LScriptOriginalKb := 1;
+          FOnSyncProgress('__script_download', LScriptOriginalKb, LScriptOriginalKb, False);
+        end;
+      end;
 
-      LScript := LScriptValue.Value;
+      LScriptValue := LResp.GetValue('scriptZlib');
+      if Assigned(LScriptValue) then
+        LScript := DecodeCompressedScript(LScriptValue.Value)
+      else
+      begin
+        LScriptValue := LResp.GetValue('script');
+        if not Assigned(LScriptValue) then
+          raise Exception.Create('Resposta da API sem script de sincronizacao');
+        LScript := LScriptValue.Value;
+      end;
       if Trim(LScript) = '' then
         raise Exception.Create('Script de sincronizacao vazio');
 
@@ -3653,6 +4264,8 @@ begin
 
       if Assigned(FOnSyncProgress) then
         FOnSyncProgress('__script_finish', 5, 5, False);
+
+      UploadSQLiteBackup(StrToIntDef(Trim(ACodRepresentante), 0));
     finally
       LResp.Free;
     end;
@@ -3665,11 +4278,12 @@ end;
 
 function TdmApp.SyncAllTables(const ACodRepresentante: string): Integer;
 const
-  CDefaultTables: array[0..14] of string = (
+  CDefaultTables: array[0..15] of string = (
     'representante',
     'cliente',
     'vendas1',
     'vendas2',
+    'cr1',
     'produto',
     'fop',
     'fop_prazo',

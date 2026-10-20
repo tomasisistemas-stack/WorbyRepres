@@ -139,16 +139,23 @@ object frmLogin: TfrmLogin
         TextSettings.HorzAlign = Center
         TextSettings.Trimming = Word
       end
+      object PbRestore: TProgressBar
+        Orientation = Horizontal
+        Position.X = 18.000000000000000000
+        Position.Y = 310.000000000000000000
+        Size.Width = 235.000000000000000000
+        Size.Height = 10.000000000000000000
+        Size.PlatformDefault = False
+        Visible = False
+      end
       object RectAnimation1: TRectAnimation
         Duration = 0.200000002980232200
       end
     end
     object lbottom: TLayout
-      Align = MostBottom
-      Margins.Right = 10.000000000000000000
-      Margins.Bottom = 50.000000000000000000
-      Position.Y = 518.000000000000000000
-      Size.Width = 350.000000000000000000
+      Align = Bottom
+      Position.Y = 568.000000000000000000
+      Size.Width = 360.000000000000000000
       Size.Height = 72.000000000000000000
       Size.PlatformDefault = False
       TabOrder = 1
@@ -548,8 +555,8 @@ object frmLogin: TfrmLogin
       end
       object lySair: TLayout
         Align = MostRight
-        Position.X = 293.000000000000000000
-        Size.Width = 57.000000000000000000
+        Position.X = 276.000000000000000000
+        Size.Width = 84.000000000000000000
         Size.Height = 72.000000000000000000
         Size.PlatformDefault = False
         TabOrder = 0
@@ -557,10 +564,11 @@ object frmLogin: TfrmLogin
           Align = Client
           CornerType = InnerRound
           Fill.Kind = None
-          Size.Width = 57.000000000000000000
+          Size.Width = 84.000000000000000000
           Size.Height = 72.000000000000000000
           Size.PlatformDefault = False
           Stroke.Kind = None
+          OnClick = imSairClick
           object imSair: TImage
             MultiResBitmap.Height = 512
             MultiResBitmap.Width = 512
@@ -2974,7 +2982,7 @@ object frmLogin: TfrmLogin
             Align = Bottom
             StyledSettings = [Family, Style]
             Position.Y = 57.599998474121090000
-            Size.Width = 57.000000000000000000
+            Size.Width = 84.000000000000000000
             Size.Height = 14.399999618530270000
             Size.PlatformDefault = False
             TextSettings.Font.Size = 14.000000000000000000
@@ -2982,6 +2990,7 @@ object frmLogin: TfrmLogin
             TextSettings.HorzAlign = Center
             Text = 'Sair'
             TabOrder = 0
+            OnClick = imSairClick
           end
         end
       end

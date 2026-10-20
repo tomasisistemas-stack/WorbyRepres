@@ -110,16 +110,16 @@
         <VerInfo_ProductVersion>1.0.0.0</VerInfo_ProductVersion>
         <VerInfo_FileVersion>1.0.0.0</VerInfo_FileVersion>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
-        <VerInfo_Keys>package=com.tomasi.worbyrep;label=$(MSBuildProjectName);versionCode=1;versionName=1.0.0;minSdkVersion=23;targetSdkVersion=34;installLocation=auto</VerInfo_Keys>
+        <VerInfo_Keys>package=com.tomasi.worbyrep;label=$(MSBuildProjectName);versionCode=1;versionName=1.0.0;minSdkVersion=23;targetSdkVersion=36;installLocation=auto</VerInfo_Keys>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Android64)'!=''">
         <DCC_UsePackage>fmx;FireDAC;FireDACCommon;FireDACCommonDriver;FireDACSqliteDriver;fmxFireDAC;RESTComponents;RESTBackendComponents;IndyCore;IndyProtocols;IndyIPCommon;IndyIPClient;IndySystem;$(DCC_UsePackage)</DCC_UsePackage>
-        <VerInfo_Keys>package=com.embarcadero.$(MSBuildProjectName);label=$(MSBuildProjectName);versionCode=1;versionName=1.0.0;minSdkVersion=24;targetSdkVersion=35;installLocation=auto</VerInfo_Keys>
+        <VerInfo_Keys>package=com.embarcadero.$(MSBuildProjectName);label=$(MSBuildProjectName);versionCode=1;versionName=1.0.0;minSdkVersion=24;targetSdkVersion=36;installLocation=auto</VerInfo_Keys>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Android32)'!=''">
         <DCC_UsePackage>fmx;FireDAC;FireDACCommon;FireDACCommonDriver;FireDACSqliteDriver;fmxFireDAC;RESTComponents;RESTBackendComponents;IndyCore;IndyProtocols;IndyIPCommon;IndyIPClient;IndySystem;$(DCC_UsePackage)</DCC_UsePackage>
-        <VerInfo_Keys>package=com.tomasi.worbyrep;label=$(MSBuildProjectName);versionCode=1;versionName=1.0.0;minSdkVersion=24;targetSdkVersion=35;installLocation=auto</VerInfo_Keys>
+        <VerInfo_Keys>package=com.tomasi.worbyrep;label=$(MSBuildProjectName);versionCode=1;versionName=1.0.0;minSdkVersion=24;targetSdkVersion=36;installLocation=auto</VerInfo_Keys>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win32)'!=''">

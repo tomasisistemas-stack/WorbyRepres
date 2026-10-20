@@ -4,11 +4,15 @@ interface
 
 uses
   System.SysUtils, System.Types, System.UITypes, System.Classes, System.Variants,
-  System.JSON, System.Net.HttpClient, System.Net.URLClient, Data.DB,
+  System.JSON, System.Net.HttpClient, System.Net.URLClient, System.Math, Data.DB,
   FireDAC.Comp.Client, FireDAC.Stan.Param,
   FMX.Types, FMX.Controls, FMX.Forms, FMX.Graphics, FMX.Dialogs, FMX.Objects,
   FMX.Controls.Presentation, FMX.StdCtrls, FMX.Layouts, FMX.Edit, FMX.ListBox,
-  FMX.ScrollBox, FMX.Memo;
+  FMX.ScrollBox, FMX.Memo
+  {$IFDEF ANDROID}
+  , Androidapi.JNI.Os
+  {$ENDIF}
+  ;
 
 type
   TfrmClienteCadastro = class(TForm)
@@ -80,11 +84,16 @@ type
     FFantasia: string;
     FMaskingDoc: Boolean;
     FFormActive: Boolean;
+    FKeyboardHeight: Single;
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
     procedure FormHide(Sender: TObject);
+    procedure VirtualKeyboardShown(Sender: TObject; KeyboardVisible: Boolean; const Bounds: TRect);
+    procedure VirtualKeyboardHidden(Sender: TObject; KeyboardVisible: Boolean; const Bounds: TRect);
+    procedure ScrollFocusedEditIntoView;
     procedure ApplyResponsiveLayout;
     procedure AtualizarMascaraDocumento;
     function OnlyDigits(const AValue: string): string;
+    function EmailValido(const AValue: string): Boolean;
     function FormatarDocumento(const AValue: string; const ATipoPessoa: string): string;
     function JsonString(AObj: TJSONObject; const AName: string): string;
     function BuscarClienteNaApi(const ACnpj: string): TJSONObject;
@@ -124,6 +133,8 @@ begin
     dmApp.SetAppState('cliente_cadastro', 0, '');
   OnClose := FormClose;
   OnHide := FormHide;
+  OnVirtualKeyboardShown := VirtualKeyboardShown;
+  OnVirtualKeyboardHidden := VirtualKeyboardHidden;
   UseAndroidSafeComboPicker([CbTipoPessoa]);
   LbCodClienteInfo.Text := 'Codigo: --';
   EdCpfCnpj.OnChangeTracking := EdCpfCnpjChangeTracking;
@@ -189,6 +200,41 @@ begin
     Exit;
   end;
 
+  if OnlyDigits(EdTelefone.Text) = '' then
+  begin
+    ShowMessage('Informe o telefone de contato.');
+    EdTelefone.SetFocus;
+    Exit;
+  end;
+
+  if not (Length(OnlyDigits(EdTelefone.Text)) in [10, 11]) then
+  begin
+    ShowMessage('Informe um telefone valido com DDD.');
+    EdTelefone.SetFocus;
+    Exit;
+  end;
+
+  if Trim(EdEmail.Text) = '' then
+  begin
+    ShowMessage('Informe o e-mail de contato.');
+    EdEmail.SetFocus;
+    Exit;
+  end;
+
+  if not EmailValido(EdEmail.Text) then
+  begin
+    ShowMessage('Informe um e-mail de contato valido.');
+    EdEmail.SetFocus;
+    Exit;
+  end;
+
+  if (Trim(EdEmailEndNfe.Text) <> '') and not EmailValido(EdEmailEndNfe.Text) then
+  begin
+    ShowMessage('Informe um e-mail para NFe valido.');
+    EdEmailEndNfe.SetFocus;
+    Exit;
+  end;
+
   LCliente := MontarClienteJson;
   try
     LResposta := EnviarClienteApi(LCliente);
@@ -212,6 +258,21 @@ begin
   finally
     LCliente.Free;
   end;
+end;
+
+function TfrmClienteCadastro.EmailValido(const AValue: string): Boolean;
+var
+  LEmail: string;
+  LAtPos: Integer;
+  LDotPos: Integer;
+begin
+  LEmail := Trim(AValue);
+  LAtPos := Pos('@', LEmail);
+  LDotPos := LastDelimiter('.', LEmail);
+  Result := (LEmail <> '') and (LAtPos > 1) and
+    (LAtPos = LastDelimiter('@', LEmail)) and
+    (LDotPos > LAtPos + 1) and (LDotPos < Length(LEmail)) and
+    (Pos(' ', LEmail) = 0);
 end;
 
 procedure TfrmClienteCadastro.CbTipoPessoaChange(Sender: TObject);
@@ -966,6 +1027,7 @@ var
   LFooterW: Single;
   LBtnW: Single;
   LCardGap: Single;
+  LAvailableHeight: Single;
 begin
   if csDestroying in ComponentState then
     Exit;
@@ -974,9 +1036,12 @@ begin
 
   LIsLandscape := ClientWidth > ClientHeight;
   LIsTabletPortrait := (not LIsLandscape) and (ClientWidth >= 430);
-  LBottom := 0;
-  if not LIsLandscape then
-    LBottom := 50;
+  LBottom := AndroidBottomSafeMargin(LIsLandscape);
+  {$IFDEF ANDROID}
+  if LIsLandscape and (TJBuild_VERSION.JavaClass.SDK_INT >= 35) then
+    LBottom := Max(LBottom, 62);
+  {$ENDIF}
+  LAvailableHeight := Max(0, ClientHeight - FKeyboardHeight);
 
   LFooterH := 50;
   LCardGap := 12;
@@ -997,7 +1062,7 @@ begin
     LX := (ClientWidth - LContentW) / 2;
 
     ScrollBox.Align := TAlignLayout.None;
-    ScrollBox.SetBounds(LX, TopBar.Height + 8, LContentW, ClientHeight - TopBar.Height - LFooterH - LBottom - 24);
+    ScrollBox.SetBounds(LX, TopBar.Height + 8, LContentW, LAvailableHeight - TopBar.Height - LFooterH - LBottom - 24);
 
     CardDados.Align := TAlignLayout.None;
     CardEndereco.Align := TAlignLayout.None;
@@ -1016,7 +1081,7 @@ begin
     end;
 
     LyRodape.Align := TAlignLayout.None;
-    LyRodape.SetBounds(LX, ClientHeight - LFooterH - LBottom - 8, LContentW, LFooterH);
+    LyRodape.SetBounds(LX, LAvailableHeight - LFooterH - LBottom - 8, LContentW, LFooterH);
     LyRodape.Margins.Bottom := 0;
   end
   else
@@ -1059,7 +1124,7 @@ begin
 
     LyRodape.Align := TAlignLayout.MostBottom;
     LyRodape.Height := LFooterH;
-    LyRodape.Margins.Bottom := LBottom;
+    LyRodape.Margins.Bottom := Max(LBottom, FKeyboardHeight);
   end;
 
   LFooterW := LyRodape.Width;
@@ -1082,6 +1147,49 @@ begin
   BtnGravar.Margins.Bottom := 4;
   LbCancelar.TextSettings.Font.Size := 14;
   LbGravar.TextSettings.Font.Size := 14;
+end;
+
+procedure TfrmClienteCadastro.VirtualKeyboardShown(Sender: TObject;
+  KeyboardVisible: Boolean; const Bounds: TRect);
+var
+  LKeyboardTop: TPointF;
+begin
+  if not KeyboardVisible then
+    Exit;
+  LKeyboardTop := ScrollBox.ScreenToLocal(TPointF.Create(Bounds.Left, Bounds.Top));
+  FKeyboardHeight := EnsureRange(ClientHeight - ScrollBox.Position.Y - LKeyboardTop.Y,
+    0, ClientHeight);
+  ApplyResponsiveLayout;
+  ScrollFocusedEditIntoView;
+end;
+
+procedure TfrmClienteCadastro.VirtualKeyboardHidden(Sender: TObject;
+  KeyboardVisible: Boolean; const Bounds: TRect);
+begin
+  FKeyboardHeight := 0;
+  ApplyResponsiveLayout;
+end;
+
+procedure TfrmClienteCadastro.ScrollFocusedEditIntoView;
+var
+  LFocused: IControl;
+  LFocusedControl: TControl;
+  LFocusedBottom: TPointF;
+  LViewport: TPointF;
+  LDelta: Single;
+begin
+  LFocused := Focused;
+  if (LFocused = nil) or (ScrollBox.Height <= 0) then
+    Exit;
+  LFocusedControl := TControl(LFocused.GetObject);
+  LFocusedBottom := ScrollBox.ScreenToLocal(
+    LFocusedControl.LocalToAbsolute(PointF(0, LFocusedControl.Height)));
+  LDelta := LFocusedBottom.Y - ScrollBox.Height + 16;
+  if LDelta > 0 then
+  begin
+    LViewport := ScrollBox.ViewportPosition;
+    ScrollBox.ViewportPosition := PointF(LViewport.X, LViewport.Y + LDelta);
+  end;
 end;
 
 procedure TfrmClienteCadastro.FormClose(Sender: TObject; var Action: TCloseAction);

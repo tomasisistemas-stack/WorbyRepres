@@ -47,9 +47,6 @@ inherited frmClienteDetalhe_LgXhdpiTb: TfrmClienteDetalhe_LgXhdpiTb
           end
         end
       end
-      inherited CardSituacao: TRectangle
-        Size.Width = 460.000000000000000000
-      end
     end
   end
   inherited Layout1: TLayout

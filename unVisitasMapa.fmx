@@ -1,0 +1,126 @@
+object frmVisitasMapa: TfrmVisitasMapa
+  Left = 0
+  Top = 0
+  Caption = 'Mapa de Clientes'
+  ClientHeight = 720
+  ClientWidth = 400
+  FormFactor.Width = 320
+  FormFactor.Height = 480
+  FormFactor.Devices = [Desktop]
+  OnClose = FormClose
+  OnResize = FormResize
+  OnShow = FormShow
+  DesignerMasterStyle = 3
+  object LayoutRoot: TLayout
+    Align = Contents
+    Size.Width = 400.000000000000000000
+    Size.Height = 720.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 0
+    object BackgroundRect: TRectangle
+      Align = Contents
+      Fill.Color = xFFEEF7FF
+      Size.Width = 400.000000000000000000
+      Size.Height = 720.000000000000000000
+      Size.PlatformDefault = False
+      Stroke.Kind = None
+      object TopBar: TRectangle
+        Fill.Color = xFF4A90E2
+        Size.Width = 400.000000000000000000
+        Size.Height = 96.000000000000000000
+        Size.PlatformDefault = False
+        Stroke.Kind = None
+        object LbTitulo: TLabel
+          StyledSettings = []
+          Position.X = 24.000000000000000000
+          Position.Y = 30.000000000000000000
+          Size.Width = 352.000000000000000000
+          Size.Height = 34.000000000000000000
+          Size.PlatformDefault = False
+          TextSettings.Font.Size = 30.000000000000000000
+          TextSettings.FontColor = claWhite
+          Text = 'Mapa'
+        end
+        object LbSubtitulo: TLabel
+          StyledSettings = []
+          Position.X = 26.000000000000000000
+          Position.Y = 61.000000000000000000
+          Size.Width = 330.000000000000000000
+          Size.Height = 20.000000000000000000
+          Size.PlatformDefault = False
+          TextSettings.Font.Size = 14.000000000000000000
+          TextSettings.FontColor = claWhite
+          Text = 'Clientes mais proximos'
+        end
+      end
+      object WebMapa: TWebBrowser
+        Size.Width = 400.000000000000000000
+        Size.Height = 554.000000000000000000
+        Size.PlatformDefault = False
+        Position.Y = 96.000000000000000000
+        WindowsEngine = IEOnly
+      end
+      object BottomBar: TLayout
+        Position.Y = 650.000000000000000000
+        Size.Width = 400.000000000000000000
+        Size.Height = 70.000000000000000000
+        Size.PlatformDefault = False
+        TabOrder = 1
+        object BtnVoltar: TRectangle
+          Fill.Color = xFFE3F0FF
+          Position.X = 18.000000000000000000
+          Position.Y = 12.000000000000000000
+          Size.Width = 128.000000000000000000
+          Size.Height = 42.000000000000000000
+          Size.PlatformDefault = False
+          Stroke.Kind = None
+          XRadius = 18.000000000000000000
+          YRadius = 18.000000000000000000
+          OnClick = BtnVoltarClick
+          object LbVoltar: TLabel
+            Align = Client
+            StyledSettings = []
+            Size.Width = 128.000000000000000000
+            Size.Height = 42.000000000000000000
+            Size.PlatformDefault = False
+            TextSettings.Font.Size = 16.000000000000000000
+            TextSettings.FontColor = xFF0B79B7
+            TextSettings.HorzAlign = Center
+            Text = 'Voltar'
+            OnClick = BtnVoltarClick
+          end
+        end
+        object BtnAtualizar: TRectangle
+          Fill.Color = xFF4A90E2
+          Position.X = 248.000000000000000000
+          Position.Y = 12.000000000000000000
+          Size.Width = 134.000000000000000000
+          Size.Height = 42.000000000000000000
+          Size.PlatformDefault = False
+          Stroke.Kind = None
+          XRadius = 18.000000000000000000
+          YRadius = 18.000000000000000000
+          OnClick = BtnAtualizarClick
+          object LbAtualizar: TLabel
+            Align = Client
+            StyledSettings = []
+            Size.Width = 134.000000000000000000
+            Size.Height = 42.000000000000000000
+            Size.PlatformDefault = False
+            TextSettings.Font.Size = 16.000000000000000000
+            TextSettings.Font.StyleExt = {00070000000000000004000000}
+            TextSettings.FontColor = claWhite
+            TextSettings.HorzAlign = Center
+            Text = 'Atualizar'
+            OnClick = BtnAtualizarClick
+          end
+        end
+      end
+    end
+  end
+  object TimerAtualizacao: TTimer
+    Enabled = False
+    Interval = 30000
+    OnTimer = TimerAtualizacaoTimer
+  end
+end

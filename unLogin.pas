@@ -9,7 +9,11 @@ uses
   FireDAC.Comp.Client,
   FMX.Types, FMX.Controls, FMX.Forms, FMX.Graphics, FMX.Dialogs, FMX.Objects,
   FMX.Controls.Presentation, FMX.StdCtrls, FMX.Layouts, FMX.Edit, FMX.ListBox,
-  FMX.Ani, unFuncoes;
+  FMX.Ani, unFuncoes
+  {$IFDEF ANDROID}
+  , Androidapi.JNI.Os
+  {$ENDIF}
+  ;
 
 type
   TfrmLogin = class(TForm)
@@ -24,6 +28,7 @@ type
     BtnEntrar: TRectangle;
     LbBtnEntrar: TLabel;
     LbStatus: TLabel;
+    PbRestore: TProgressBar;
     RectAnimation1: TRectAnimation;
     lbottom: TLayout;
     lySaidas: TLayout;
@@ -43,9 +48,15 @@ type
     procedure CbBaseUrlChange(Sender: TObject);
   private
     FAutoSessionChecked: Boolean;
+    FLoginEmAndamento: Boolean;
+    FRestoreEtapa: string;
+    FRestorePercentual: Integer;
     FLbVersao: TLabel;
     procedure EnsureVersionLabel;
     procedure AtualizarStatus(const AText: string; AError: Boolean = False);
+    procedure AtualizarProgressoRestore(const AEtapa: string; APercentual: Integer);
+    procedure DoAtualizarProgressoRestore;
+    procedure FinalizarProgressoRestore;
     function BaseUrlSelecionada: string;
     function RotuloParaApiUrl(const ARotuloOuUrl: string): string;
     function ApiUrlParaRotulo(const AUrl: string): string;
@@ -58,6 +69,7 @@ type
     function GetSavedPassword: string;
     function SessionBaseMatchesSelectedBase: Boolean;
     function IsManualLogoutPending: Boolean;
+    procedure SalvarCredenciaisLocais;
   public
   end;
 
@@ -112,6 +124,33 @@ begin
     LbStatus.TextSettings.FontColor := $FF1D2939;
 end;
 
+procedure TfrmLogin.AtualizarProgressoRestore(const AEtapa: string; APercentual: Integer);
+begin
+  FRestoreEtapa := AEtapa;
+  FRestorePercentual := EnsureRange(APercentual, 0, 100);
+  TThread.Queue(nil, DoAtualizarProgressoRestore);
+end;
+
+procedure TfrmLogin.DoAtualizarProgressoRestore;
+begin
+  if csDestroying in ComponentState then
+    Exit;
+  PbRestore.Visible := True;
+  PbRestore.Value := FRestorePercentual;
+  LbBtnEntrar.Text := 'Restaurando...';
+  AtualizarStatus(FRestoreEtapa + ' (' + FRestorePercentual.ToString + '%)');
+  BtnEntrar.HitTest := False;
+end;
+
+procedure TfrmLogin.FinalizarProgressoRestore;
+begin
+  FLoginEmAndamento := False;
+  PbRestore.Visible := False;
+  PbRestore.Value := 0;
+  LbBtnEntrar.Text := 'Entrar';
+  BtnEntrar.HitTest := True;
+end;
+
 function TfrmLogin.BaseUrlSelecionada: string;
 begin
   if CbBaseUrl.ItemIndex >= 0 then
@@ -132,6 +171,7 @@ begin
   LValor := Trim(ARotuloOuUrl);
   if SameText(LValor, 'PLASFAN') then
     Exit('http://plasfan.ddns.com.br:9004');
+    //Exit('http://localhost:9000');
   if SameText(LValor, 'FILHO DO CRIADOR') then
     Exit('http://plasfan.ddns.com.br:9000');
   Result := LValor;
@@ -202,7 +242,10 @@ begin
       dmApp.ClearAppState(LScreen);
     end
     else
+    begin
+      frmPrincipal.RestaurarFormulario(LScreen, LPedidoId);
       dmApp.ClearAppState(LScreen);
+    end;
   end;
 
   Hide;
@@ -219,11 +262,11 @@ end;
 
 procedure TfrmLogin.BtnEntrarClick(Sender: TObject);
 var
-  LResponse: TJSONObject;
   LMsg: string;
   LCached: TJSONObject;
   LSenha: string;
   LSenhaSalva: string;
+  LLogin: string;
 begin
   if Trim(BaseUrlSelecionada) = '' then
   begin
@@ -259,8 +302,11 @@ begin
     if Assigned(LCached) then
     begin
       try
-        if (LSenhaSalva <> '') and SameText(LSenha, LSenhaSalva) then
+        if SessionBaseMatchesSelectedBase and
+           SameText(dmApp.GetSessionLogin, Trim(EdLogin.Text)) and
+           (LSenhaSalva <> '') and SameText(LSenha, LSenhaSalva) then
         begin
+          SalvarCredenciaisLocais;
           dmApp.SetAppConfigValue('login_saida_manual', '0');
           EnsurePrincipalForm;
           frmPrincipal.AtualizarContextoUsuario(LCached);
@@ -273,26 +319,77 @@ begin
     end;
   end;
 
+  if FLoginEmAndamento then
+    Exit;
+
+  LLogin := Trim(EdLogin.Text);
+  FLoginEmAndamento := True;
   AtualizarStatus('Autenticando no WorbyRepRest...');
-  try
-    LResponse := dmApp.Login(Trim(EdLogin.Text), LSenha);
-    try
-      dmApp.SetAppConfigValue('login_saida_manual', '0');
-      EnsurePrincipalForm;
-      frmPrincipal.AtualizarContextoUsuario(LResponse);
-      MostrarPrincipalOuRestaurar;
-    finally
-      LResponse.Free;
-    end;
-  except
-    on E: Exception do
+  BtnEntrar.HitTest := False;
+  dmApp.OnRestoreProgress := AtualizarProgressoRestore;
+  TThread.CreateAnonymousThread(
+    procedure
+    var
+      LJsonResposta: string;
+      LErro: string;
+      LResposta: TJSONObject;
+      LJsonValue: TJSONValue;
+      LRespostaLogin: TJSONObject;
     begin
-      LMsg := NormalizeApiError(E.Message);
-      if SameText(LMsg, 'Usuario ou senha invalidos') then
-        LMsg := 'Usuário e Senha Inválidos';
-      AtualizarStatus(LMsg, True);
-    end;
-  end;
+      LJsonResposta := '';
+      LErro := '';
+      try
+        LResposta := dmApp.Login(LLogin, LSenha);
+        try
+          LJsonResposta := LResposta.ToJSON;
+        finally
+          LResposta.Free;
+        end;
+      except
+        on E: Exception do
+          LErro := E.Message;
+      end;
+
+      TThread.Queue(nil,
+        procedure
+        begin
+          if csDestroying in ComponentState then
+            Exit;
+          try
+            try
+              if LErro <> '' then
+              begin
+                LMsg := NormalizeApiError(LErro);
+                if SameText(LMsg, 'Usuario ou senha invalidos') then
+                  LMsg := 'Usuário e Senha Inválidos';
+                AtualizarStatus(LMsg, True);
+                Exit;
+              end;
+
+              LJsonValue := TJSONObject.ParseJSONValue(LJsonResposta);
+              try
+                if not (LJsonValue is TJSONObject) then
+                  raise Exception.Create('Resposta inválida do servidor.');
+                LRespostaLogin := TJSONObject(LJsonValue);
+                // Confirma a persistencia mesmo se o login remoto tiver restaurado o banco local.
+                dmApp.SaveLoginCredentials(BaseUrlSelecionada, LLogin, LSenha);
+                dmApp.SetAppConfigValue('login_saida_manual', '0');
+                EnsurePrincipalForm;
+                frmPrincipal.AtualizarContextoUsuario(LRespostaLogin);
+                MostrarPrincipalOuRestaurar;
+              finally
+                LJsonValue.Free;
+              end;
+            except
+              on E: Exception do
+                AtualizarStatus(NormalizeApiError(E.Message), True);
+            end;
+          finally
+            dmApp.OnRestoreProgress := nil;
+            FinalizarProgressoRestore;
+          end;
+        end);
+    end).Start;
 end;
 
 procedure TfrmLogin.FormShow(Sender: TObject);
@@ -311,47 +408,37 @@ begin
   if CbBaseUrl.ItemIndex < 0 then
     CbBaseUrl.ItemIndex := 0;
   CbBaseUrl.OnChange := CbBaseUrlChange;
-  if SessionBaseMatchesSelectedBase then
-  begin
-    EdLogin.Text := dmApp.GetSessionLogin;
-    EdSenha.Text := GetSavedPassword;
-  end
-  else
-  begin
-    EdLogin.Text := '';
-    EdSenha.Text := '';
-  end;
+
+  EdLogin.Text := dmApp.GetSessionLogin;
+  EdSenha.Text := GetSavedPassword;
   AtualizarStatus('');
   ApplyOrientationLayout;
 
-  if (not IsManualLogoutPending) and Assigned(frmPrincipal) and (frmPrincipal.id_representante > 0) then
-  begin
-    dmApp.SetAppConfigValue('login_saida_manual', '0');
-    MostrarPrincipalOuRestaurar;
+  if FAutoSessionChecked then
     Exit;
-  end;
+  FAutoSessionChecked := True;
 
-  if not IsManualLogoutPending then
-  begin
-    if not FAutoSessionChecked then
-      FAutoSessionChecked := True;
-    LLogin := Trim(EdLogin.Text);
-    LCached := GetCachedUser(LLogin);
-    if Assigned(LCached) then
+  // Manual logoff keeps the login screen. Android process death restores the session.
+  if IsManualLogoutPending then
+    Exit;
+
+  LLogin := Trim(EdLogin.Text);
+  if LLogin = '' then
+    Exit;
+
+  LCached := GetCachedUser(LLogin);
+  if not Assigned(LCached) then
+    Exit;
+  try
+    EnsurePrincipalForm;
+    frmPrincipal.AtualizarContextoUsuario(LCached);
+    if frmPrincipal.id_representante > 0 then
     begin
-      try
-        EnsurePrincipalForm;
-        frmPrincipal.AtualizarContextoUsuario(LCached);
-        if frmPrincipal.id_representante > 0 then
-        begin
-          dmApp.SetAppConfigValue('login_saida_manual', '0');
-          MostrarPrincipalOuRestaurar;
-          Exit;
-        end;
-      finally
-        LCached.Free;
-      end;
+      dmApp.SetAppConfigValue('login_saida_manual', '0');
+      MostrarPrincipalOuRestaurar;
     end;
+  finally
+    LCached.Free;
   end;
 end;
 
@@ -382,35 +469,108 @@ var
   LRightW: Single;
   LLabel: TLabel;
 begin
+  if (Width <= 0) or (Height <= 0) then
+    Exit;
+
   LIsLandscape := Width > Height;
   LIsTablet := Min(Width, Height) >= 600;
-  LBottomMargin := Max(92, AndroidNavigationInset(False) + 52);
-  LRightSafe := 0;
   LBaseCardW := 270;
   LBaseCardH := 316;
+
+  if LIsLandscape then
+  begin
+    lbottom.Height := 52;
+    LBottomMargin := AndroidBottomSafeMargin(LIsLandscape);
+    {$IFDEF ANDROID}
+    if TJBuild_VERSION.JavaClass.SDK_INT >= 35 then
+      LBottomMargin := Max(LBottomMargin, 92)
+    else
+    {$ENDIF}
+    if LBottomMargin < 52 then
+      LBottomMargin := 52;
+    LRightSafe := Max(0, AndroidNavigationInset(True) + 8);
+    if LRightSafe < 72 then
+      LRightSafe := 72;
+  end
+  else
+  begin
+    lbottom.Height := 58;
+    LBottomMargin := AndroidBottomSafeMargin(LIsLandscape);
+    {$IFDEF ANDROID}
+    if TJBuild_VERSION.JavaClass.SDK_INT >= 35 then
+      LBottomMargin := Max(LBottomMargin, 88)
+    else
+    {$ENDIF}
+    if LBottomMargin < 44 then
+      LBottomMargin := 44;
+    LRightSafe := 0;
+  end;
 
   // Cabeçalho responsivo (evita distorção e corte da arte em diferentes telas)
   Image1.Align := TAlignLayout.Client;
   Image1.WrapMode := TImageWrapMode.Fit;
   Image1.HitTest := False;
 
+  if LIsLandscape then
+  begin
+    LHeaderH := Height * 0.22;
+    if LHeaderH < 68 then
+      LHeaderH := 68;
+    if LHeaderH > 118 then
+      LHeaderH := 118;
+    TopBar.Align := TAlignLayout.None;
+    TopBar.Width := Width;
+    TopBar.Position.X := 0;
+    TopBar.Height := LHeaderH;
+    TopBar.Position.Y := -46;
+  end
+  else
+  begin
+    if LIsTablet then
+      LHeaderH := Height * 0.15
+    else
+      LHeaderH := Height * 0.17;
+    if LHeaderH < 104 then
+      LHeaderH := 104;
+    if LHeaderH > 170 then
+      LHeaderH := 170;
+    TopBar.Align := TAlignLayout.None;
+    TopBar.Width := Width;
+    TopBar.Position.X := 0;
+    TopBar.Height := LHeaderH;
+    TopBar.Position.Y := 0;
+  end;
+
+  lbottom.Visible := True;
+  lbottom.Opacity := 1;
   lySaidas.Visible := False;
   lySair.Visible := True;
+  lySair.Opacity := 1;
   lbottom.Align := TAlignLayout.None;
   lbottom.Margins.Bottom := 0;
-  lbottom.Height := 58;
-  lbottom.Width := Width - LRightSafe;
+  lbottom.Width := Max(120, Width - LRightSafe);
   lbottom.Position.X := 0;
   lbottom.Position.Y := Height - lbottom.Height - LBottomMargin;
-  if lbottom.Position.Y < 0 then
-    lbottom.Position.Y := Height - lbottom.Height - 12;
 
   lySair.Align := TAlignLayout.MostRight;
-  lySair.Width := 64;
+  lySair.Width := 84;
   lySair.Height := lbottom.Height;
   rSair.Height := lySair.Height;
+  imSair.Align := TAlignLayout.None;
+  imSair.SetBounds((lySair.Width - 30) / 2, 3, 30, 30);
+  lbSair.Align := TAlignLayout.None;
+  lbSair.SetBounds(0, 32, lySair.Width, 18);
   EnsureVersionLabel;
-  FLbVersao.SetBounds(12, (lbottom.Height - 18) / 2, Max(80, lbottom.Width - 92), 18);
+  FLbVersao.SetBounds(12, (lbottom.Height - 18) / 2, Max(80, lbottom.Width - 156), 18);
+  lySaidas.Align := TAlignLayout.MostRight;
+  lySaidas.Width := 64;
+  lySaidas.Height := lbottom.Height;
+  TopBar.BringToFront;
+  lbottom.BringToFront;
+  lySair.BringToFront;
+  imSair.BringToFront;
+  lbSair.BringToFront;
+  FLbVersao.BringToFront;
 
   if LIsLandscape then
   begin
@@ -490,6 +650,9 @@ begin
     BtnEntrar.Position.Y := 104;
     BtnEntrar.Width := LRightW;
     BtnEntrar.Height := 38;
+    PbRestore.Position.X := BtnEntrar.Position.X;
+    PbRestore.Position.Y := BtnEntrar.Position.Y + BtnEntrar.Height + 4;
+    PbRestore.Width := BtnEntrar.Width;
 
     LContentTop := TopBar.Position.Y + TopBar.Height + 6;
     LContentBottom := lbottom.Position.Y - 8;
@@ -576,6 +739,9 @@ begin
     EdLogin.Width := LInputW;
     EdSenha.Width := LInputW;
     BtnEntrar.Width := LInputW;
+    PbRestore.Position.X := BtnEntrar.Position.X;
+    PbRestore.Position.Y := BtnEntrar.Position.Y + BtnEntrar.Height + 4;
+    PbRestore.Width := BtnEntrar.Width;
     LbStatus.Width := Card.Width - 38;
     LbStatus.Position.Y := Card.Height + 4;
 
@@ -719,8 +885,8 @@ begin
   try
     LQuery.Connection := dmApp.FDConnection;
     LQuery.SQL.Text :=
-      'select id, coalesce(nom_representante, '''') as nom_representante ' +
-      'from representante where id = :p0';
+      'select id, coalesce(nom_representante, '''') as nom_representante, coalesce(funcionario, '''') as funcionario ' +
+      'from representante where id = :p0 or cod_tablet = :p0';
     LQuery.ParamByName('p0').AsInteger := LRepId;
     LQuery.Open;
     if LQuery.IsEmpty then
@@ -729,6 +895,7 @@ begin
     Result := TJSONObject.Create;
     Result.AddPair('cod_representante', TJSONNumber.Create(LQuery.FieldByName('id').AsInteger));
     Result.AddPair('nom_representante', LQuery.FieldByName('nom_representante').AsString);
+    Result.AddPair('funcionario', LQuery.FieldByName('funcionario').AsString);
     if LLogin <> '' then
       Result.AddPair('logusu', LLogin)
     else if ALogin <> '' then
@@ -781,8 +948,14 @@ begin
   end;
 end;
 
+procedure TfrmLogin.SalvarCredenciaisLocais;
+begin
+  if Assigned(dmApp) then
+    dmApp.SaveLoginCredentials(BaseUrlSelecionada, EdLogin.Text, EdSenha.Text);
+end;
 procedure TfrmLogin.imSairClick(Sender: TObject);
 begin
+  SalvarCredenciaisLocais;
   SairdoSistema;
 end;
 

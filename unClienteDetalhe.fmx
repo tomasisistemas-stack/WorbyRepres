@@ -2,7 +2,7 @@ object frmClienteDetalhe: TfrmClienteDetalhe
   Left = 0
   Top = 0
   Caption = 'Cliente'
-  ClientHeight = 640
+  ClientHeight = 782
   ClientWidth = 360
   FormFactor.Width = 360
   FormFactor.Height = 640
@@ -13,14 +13,14 @@ object frmClienteDetalhe: TfrmClienteDetalhe
     Align = Contents
     Fill.Color = xFFEEF7FF
     Size.Width = 360.000000000000000000
-    Size.Height = 640.000000000000000000
+    Size.Height = 782.000000000000000000
     Size.PlatformDefault = False
     Stroke.Kind = None
   end
   object LayoutRoot: TLayout
     Align = Client
     Size.Width = 360.000000000000000000
-    Size.Height = 540.000000000000000000
+    Size.Height = 682.000000000000000000
     Size.PlatformDefault = False
     TabOrder = 0
     object TopBar: TRectangle
@@ -53,11 +53,11 @@ object frmClienteDetalhe: TfrmClienteDetalhe
     object PresentedScrollBox1: TPresentedScrollBox
       Align = Client
       Size.Width = 360.000000000000000000
-      Size.Height = 444.000000000000000000
+      Size.Height = 586.000000000000000000
       Size.PlatformDefault = False
       TabOrder = 0
       Viewport.Width = 360.000000000000000000
-      Viewport.Height = 444.000000000000000000
+      Viewport.Height = 586.000000000000000000
       object CardContato: TRectangle
         Align = MostTop
         Fill.Color = claWhite
@@ -170,7 +170,7 @@ object frmClienteDetalhe: TfrmClienteDetalhe
             Align = Client
             StyledSettings = []
             Size.Width = 300.000000000000000000
-            Size.Height = 14.399999618530270000
+            Size.Height = 14.400001525878910000
             Size.PlatformDefault = False
             TextSettings.Font.Size = 13.000000000000000000
             TextSettings.FontColor = xFF6B7280
@@ -323,66 +323,58 @@ object frmClienteDetalhe: TfrmClienteDetalhe
         end
       end
       object CardSituacao: TRectangle
-        Align = MostTop
+        Align = Client
         Fill.Color = claWhite
         Margins.Left = 10.000000000000000000
         Margins.Top = 10.000000000000000000
         Margins.Right = 10.000000000000000000
         Margins.Bottom = 10.000000000000000000
-        Position.X = 10.000000000000000000
-        Position.Y = 346.000000000000000000
         Size.Width = 340.000000000000000000
-        Size.Height = 80.000000000000000000
+        Size.Height = 230.000000000000000000
         Size.PlatformDefault = False
         Stroke.Kind = None
         XRadius = 16.000000000000000000
         YRadius = 16.000000000000000000
-        object LayoutLimite: TLayout
-          Align = Top
-          Margins.Left = 20.000000000000000000
-          Margins.Right = 20.000000000000000000
-          Margins.Bottom = 10.000000000000000000
-          Position.X = 20.000000000000000000
-          Position.Y = 36.000000000000000000
-          Size.Width = 300.000000000000000000
-          Size.Height = 15.000000000000000000
+        object LvBoletosAbertos: TListView
+          ItemAppearanceClassName = 'TListItemRightDetailAppearance'
+          ItemEditAppearanceClassName = 'TListItemRightDetailDeleteAppearance'
+          HeaderAppearanceClassName = 'TListHeaderObjects'
+          FooterAppearanceClassName = 'TListHeaderObjects'
+          Align = Client
+          Size.Width = 340.000000000000000000
+          Size.Height = 194.000000000000000000
           Size.PlatformDefault = False
-          TabOrder = 1
-          object LbLimite: TLabel
-            Align = Client
-            StyledSettings = []
-            Size.Width = 300.000000000000000000
-            Size.Height = 15.000000000000000000
-            Size.PlatformDefault = False
-            TextSettings.Font.Size = 13.000000000000000000
-            TextSettings.FontColor = xFF6B7280
-            Text = 'Limite: R$ 15.000.00'
-          end
+          TabOrder = 0
+          ItemAppearance.ItemHeight = 40
+          ItemAppearance.ItemEditHeight = 30
+          ItemAppearance.HeaderHeight = 1
+          ItemAppearance.FooterHeight = 1
+          ItemAppearanceObjects.ItemObjects.Text.Font.Size = 11.000000000000000000
+          ItemAppearanceObjects.ItemObjects.Text.TextVertAlign = Leading
+          ItemAppearanceObjects.ItemObjects.Text.WordWrap = True
+          ItemAppearanceObjects.ItemObjects.Text.Width = 305.000000000000000000
+          ItemAppearanceObjects.ItemObjects.Text.Height = 15.000000000000000000
+          ItemAppearanceObjects.ItemObjects.Text.VertAlign = Trailing
+          ItemAppearanceObjects.ItemObjects.Text.PlaceOffset.X = 14.000000000000000000
+          ItemAppearanceObjects.ItemObjects.Text.PlaceOffset.Y = -19.000000000000000000
+          ItemAppearanceObjects.ItemObjects.Accessory.Width = 38.000000000000000000
+          ItemAppearanceObjects.ItemObjects.Accessory.Height = 30.000000000000000000
+          ItemAppearanceObjects.ItemObjects.Accessory.Visible = False
+          ItemAppearanceObjects.ItemObjects.Accessory.PlaceOffset.Y = -3.000000000000000000
+          ItemAppearanceObjects.ItemObjects.Detail.Font.Size = 9.000000000000000000
+          ItemAppearanceObjects.ItemObjects.Detail.TextAlign = Leading
+          ItemAppearanceObjects.ItemObjects.Detail.TextVertAlign = Leading
+          ItemAppearanceObjects.ItemObjects.Detail.Width = 305.000000000000000000
+          ItemAppearanceObjects.ItemObjects.Detail.Height = 15.000000000000000000
+          ItemAppearanceObjects.ItemObjects.Detail.Align = Leading
+          ItemAppearanceObjects.ItemObjects.Detail.PlaceOffset.X = 14.000000000000000000
+          ItemAppearanceObjects.ItemObjects.Detail.PlaceOffset.Y = 20.000000000000000000
+          ItemAppearanceObjects.HeaderObjects.Text.Visible = False
+          ItemAppearanceObjects.FooterObjects.Text.Visible = False
         end
-        object LayoutSaldo: TLayout
-          Align = Top
-          Margins.Left = 20.000000000000000000
-          Margins.Right = 20.000000000000000000
-          Margins.Bottom = 10.000000000000000000
-          Position.X = 20.000000000000000000
-          Position.Y = 61.000000000000000000
-          Size.Width = 300.000000000000000000
-          Size.Height = 14.000000000000000000
-          Size.PlatformDefault = False
-          TabOrder = 2
-          object LbSaldo: TLabel
-            Align = Client
-            StyledSettings = []
-            Size.Width = 300.000000000000000000
-            Size.Height = 14.000000000000000000
-            Size.PlatformDefault = False
-            TextSettings.Font.Size = 13.000000000000000000
-            TextSettings.FontColor = xFF6B7280
-            Text = 'Saldo: R$ 3.250.00  -  Status: Ativo'
-          end
-        end
-        object LayoutSituacaoTitulo: TLayout
-          Align = Top
+        object Label1: TLabel
+          Align = MostTop
+          StyledSettings = []
           Margins.Left = 20.000000000000000000
           Margins.Top = 10.000000000000000000
           Margins.Right = 20.000000000000000000
@@ -392,17 +384,10 @@ object frmClienteDetalhe: TfrmClienteDetalhe
           Size.Width = 300.000000000000000000
           Size.Height = 16.000000000000000000
           Size.PlatformDefault = False
-          TabOrder = 0
-          object LbSituacaoTitulo: TLabel
-            Align = Client
-            StyledSettings = []
-            Size.Width = 300.000000000000000000
-            Size.Height = 16.000000000000000000
-            Size.PlatformDefault = False
-            TextSettings.Font.Size = 14.000000000000000000
-            TextSettings.FontColor = xFF1D2939
-            Text = 'Situacao'
-          end
+          TextSettings.Font.Size = 14.000000000000000000
+          TextSettings.FontColor = xFF1D2939
+          Text = 'Boletos em Aberto'
+          TabOrder = 1
         end
       end
     end
@@ -410,7 +395,7 @@ object frmClienteDetalhe: TfrmClienteDetalhe
   object layout1: TLayout
     Align = Bottom
     Margins.Bottom = 50.000000000000000000
-    Position.Y = 540.000000000000000000
+    Position.Y = 682.000000000000000000
     Size.Width = 360.000000000000000000
     Size.Height = 50.000000000000000000
     Size.PlatformDefault = False

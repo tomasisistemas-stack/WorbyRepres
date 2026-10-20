@@ -874,7 +874,6 @@ object frmClientes: TfrmClientes
         ItemAppearanceObjects.ItemObjects.Text.WordWrap = True
         ItemAppearanceObjects.ItemObjects.Text.Width = 360.000000000000000000
         ItemAppearanceObjects.ItemObjects.Text.Height = 15.000000000000000000
-        ItemAppearanceObjects.ItemObjects.Text.Align = Trailing
         ItemAppearanceObjects.ItemObjects.Text.PlaceOffset.X = 1.000000000000000000
         ItemAppearanceObjects.ItemObjects.Accessory.Width = 38.000000000000000000
         ItemAppearanceObjects.ItemObjects.Accessory.Height = 30.000000000000000000
@@ -929,12 +928,17 @@ object frmClientes: TfrmClientes
         Size.PlatformDefault = False
         TextPrompt = 'Descricao ou codigo'
         CharCase = ecUpperCase
+        OnChangeTracking = EdBuscarChangeTracking
       end
       object CbModoBusca: TComboBox
         Touch.InteractiveGestures = [LongTap, DoubleTap]
         Items.Strings = (
           'Nome'
-          'C'#243'digo')
+          'C'#243'digo'
+          'Cidade'
+          'Fantasia'
+          'M'#233'dia pedido'
+          #218'ltima venda')
         ItemIndex = 0
         Position.X = 18.000000000000000000
         Position.Y = 94.000000000000000000
@@ -962,6 +966,31 @@ object frmClientes: TfrmClientes
         Position.X = 152.000000000000000000
         Position.Y = 94.000000000000000000
         Size.Width = 96.000000000000000000
+        Size.Height = 32.000000000000000000
+        Size.PlatformDefault = False
+      end
+      object LbOrdenacao: TLabel
+        StyledSettings = []
+        Position.X = 18.000000000000000000
+        Position.Y = 132.000000000000000000
+        Size.Width = 120.000000000000000000
+        Size.Height = 16.000000000000000000
+        Size.PlatformDefault = False
+        TextSettings.Font.Size = 11.000000000000000000
+        TextSettings.FontColor = xFF6B7280
+        Text = 'Ordenar por'
+      end
+      object CbOrdenacao: TComboBox
+        Touch.InteractiveGestures = [LongTap, DoubleTap]
+        Items.Strings = (
+          'C'#243'digo'
+          'Nome'
+          #218'ltima venda'
+          'M'#233'dia pedido')
+        ItemIndex = 2
+        Position.X = 18.000000000000000000
+        Position.Y = 148.000000000000000000
+        Size.Width = 180.000000000000000000
         Size.Height = 32.000000000000000000
         Size.PlatformDefault = False
       end
@@ -1693,12 +1722,12 @@ object frmClientes: TfrmClientes
         StyledSettings = []
         Position.X = 18.000000000000000000
         Position.Y = 74.000000000000000000
-        Size.Width = 23.000000000000000000
+        Size.Width = 90.000000000000000000
         Size.Height = 16.000000000000000000
         Size.PlatformDefault = False
         TextSettings.Font.Size = 11.000000000000000000
         TextSettings.FontColor = xFF6B7280
-        Text = 'Por'
+        Text = 'Tipo de busca'
         TabOrder = 0
       end
     end

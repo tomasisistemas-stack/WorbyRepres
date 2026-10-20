@@ -5,7 +5,7 @@ interface
 uses
   System.SysUtils, System.Types, System.UITypes, System.Classes, System.Variants,
   FMX.Types, FMX.Controls, FMX.Forms, FMX.Graphics, FMX.Dialogs,
-  FMX.Controls.Presentation, FMX.StdCtrls, FMX.Objects, FMX.Layouts, FMX.Maps,
+  FMX.Controls.Presentation, FMX.StdCtrls, FMX.Objects, FMX.Layouts,
   System.Net.HttpClient, System.Net.URLClient, System.JSON, System.Generics.Collections,
   System.Sensors, System.Sensors.Components, IdBaseComponent, IdComponent,
   IdTCPConnection, IdTCPClient, IdHTTP, System.Net.HttpClientComponent,

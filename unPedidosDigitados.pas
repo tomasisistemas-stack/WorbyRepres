@@ -547,14 +547,14 @@ begin
     begin
       TopBar.Height := 72;
       LFooterH := 58;
-      LBottom := 8;
+      LBottom := AndroidBottomSafeMargin(LIsLandscape);
       LRightSafe := Max(0, AndroidNavigationInset(True) + 8);
     end
     else
     begin
       TopBar.Height := 96;
       LFooterH := 72;
-      LBottom := 50;
+      LBottom := AndroidBottomSafeMargin(LIsLandscape);
       LRightSafe := 0;
     end;
 
@@ -1009,6 +1009,13 @@ var
   LConteudo: TStringList;
   LRepId, LFopId, LPrazoId, LCodCliente: Integer;
   LFornecedor: string;
+  LDescricao: string;
+  LUnidade: string;
+  LDescricaoLinhas: TStringList;
+  LDescricaoOffset: Integer;
+  LItemZebra: Boolean;
+  LTotalTexto: string;
+  LTotalLabelWidth: Integer;
 {$IFDEF ANDROID}
   LIntent: JIntent;
   LUri: Jnet_Uri;
@@ -1024,6 +1031,62 @@ var
     else
       Result := StringOfChar(' ', AWidth - Length(S)) + S;
   end;
+  function IsKnownUnit(const AValue: string): Boolean;
+  begin
+    Result := Pos('|' + UpperCase(AValue) + '|',
+      '|UN|UND|KG|G|GR|MG|T|TON|L|LT|ML|M|MT|M2|M3|CM|MM|PC|PCT|CX|FD|RL|BD|SC|PAR|JG|KIT|') > 0;
+  end;
+  function ParseCodeAndUnit(const AValue: string; out ACode, AUnit: string): Boolean;
+  var
+    P, I: Integer;
+  begin
+    ACode := '';
+    AUnit := '';
+    P := Length(AValue);
+    while (P > 0) and CharInSet(AValue[P], ['A'..'Z', 'a'..'z']) do
+      Dec(P);
+    ACode := Copy(AValue, 1, P);
+    AUnit := UpperCase(Copy(AValue, P + 1, MaxInt));
+    Result := (P > 0) and (AUnit <> '') and IsKnownUnit(AUnit);
+    if Result then
+      for I := 1 to Length(ACode) do
+        if not CharInSet(ACode[I], ['0'..'9']) then
+          Exit(False);
+    if not Result then
+    begin
+      ACode := '';
+      AUnit := '';
+    end;
+  end;
+  procedure NormalizeDescriptionUnit(var ADescription, AUnit: string);
+  var
+    LCode, LUnit, LJoined, LToken: string;
+    LTokenStart: Integer;
+  begin
+    ADescription := Trim(ADescription);
+    AUnit := Trim(AUnit);
+    if ParseCodeAndUnit(AUnit, LCode, LUnit) then
+    begin
+      LJoined := LCode + LUnit;
+      if (Length(ADescription) >= Length(LJoined)) and
+        SameText(Copy(ADescription, Length(ADescription) - Length(LJoined) + 1, Length(LJoined)), LJoined) then
+        Delete(ADescription, Length(ADescription) - Length(LUnit) + 1, Length(LUnit))
+      else if (Length(ADescription) < Length(LCode)) or
+        not SameText(Copy(ADescription, Length(ADescription) - Length(LCode) + 1, Length(LCode)), LCode) then
+        ADescription := Trim(ADescription + ' ' + LCode);
+      AUnit := LUnit;
+    end;
+    LTokenStart := LastDelimiter(' ', ADescription) + 1;
+    LToken := Copy(ADescription, LTokenStart, MaxInt);
+    if ParseCodeAndUnit(LToken, LCode, LUnit) and
+      ((AUnit = '') or SameText(AUnit, LUnit)) then
+    begin
+      Delete(ADescription, Length(ADescription) - Length(LUnit) + 1, Length(LUnit));
+      ADescription := Trim(ADescription);
+      if AUnit = '' then
+        AUnit := LUnit;
+    end;
+  end;
   function EscPDF(const S: string): string;
   begin
     Result := StringReplace(S, '\', '\\', [rfReplaceAll]);
@@ -1032,11 +1095,11 @@ var
   end;
   procedure SaveTextAsPdf(const AFileName: string; ALines: TStrings);
   var
-    I, Y: Integer;
-    LStream: TStringList;
-    LContent: string;
-    LContentLen: Integer;
-    LOffsets: array[1..5] of Integer;
+    I, J, Y, LGroupCount, LObjectCount, LContentLen: Integer;
+    LStream, LPages, LPage: TStringList;
+    LContent, LLine, LObjectsText: string;
+    LOffsets: array of Integer;
+    LIsZebra: Boolean;
     procedure AddRaw(const S: string);
     begin
       LStream.Add(S);
@@ -1049,39 +1112,99 @@ var
       for J := 0 to LStream.Count - 1 do
         Inc(Result, Length(AnsiString(LStream[J])) + 2);
     end;
+    procedure NewPage;
+    begin
+      LPage := TStringList.Create;
+      LPages.AddObject('', LPage);
+      Y := 810;
+    end;
+    procedure AddTextLine(const S: string);
+    begin
+      LPage.Add(Format('BT /F1 10 Tf 1 0 0 1 20 %d Tm (%s) Tj ET', [Y, EscPDF(S)]));
+      Dec(Y, 12);
+    end;
   begin
     LStream := TStringList.Create;
+    LPages := TStringList.Create;
     try
-      LContent := 'BT /F1 10 Tf' + sLineBreak;
-      Y := 810;
-      for I := 0 to ALines.Count - 1 do
+      NewPage;
+      I := 0;
+      while I < ALines.Count do
       begin
-        LContent := LContent + Format('1 0 0 1 20 %d Tm (%s) Tj', [Y, EscPDF(ALines[I])]) + sLineBreak;
-        Dec(Y, 12);
-        if Y < 20 then Break;
+        LLine := ALines[I];
+        if (LLine = '#ITEMZ#') or (LLine = '#ITEMW#') then
+        begin
+          LIsZebra := LLine = '#ITEMZ#';
+          LGroupCount := 0;
+          while (I + 1 + LGroupCount < ALines.Count) and
+            (ALines[I + 1 + LGroupCount] <> '#ENDITEM#') do
+            Inc(LGroupCount);
+          if LGroupCount = 0 then
+          begin
+            Inc(I);
+            Continue;
+          end;
+          if Y - (LGroupCount * 12) < 20 then
+            NewPage;
+          if LIsZebra then
+            LPage.Add(Format('q 0.92 g 15 %d 565 %d re f Q',
+              [Y - ((LGroupCount - 1) * 12) - 4, LGroupCount * 12]));
+          Inc(I);
+          for J := 0 to LGroupCount - 1 do
+          begin
+            AddTextLine(ALines[I]);
+            Inc(I);
+          end;
+          if (I < ALines.Count) and (ALines[I] = '#ENDITEM#') then
+            Inc(I);
+          Continue;
+        end;
+        if Y < 20 then
+          NewPage;
+        AddTextLine(LLine);
+        Inc(I);
       end;
-      LContent := LContent + 'ET' + sLineBreak;
-      LContentLen := Length(AnsiString(StringReplace(LContent, sLineBreak, #10, [rfReplaceAll])));
 
+      LObjectCount := 3 + (LPages.Count * 2);
+      SetLength(LOffsets, LObjectCount + 1);
       AddRaw('%PDF-1.4');
-      LOffsets[1] := StreamPos; AddRaw('1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj');
-      LOffsets[2] := StreamPos; AddRaw('2 0 obj<< /Type /Pages /Kids [3 0 R] /Count 1 >>endobj');
-      LOffsets[3] := StreamPos; AddRaw('3 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>endobj');
-      LOffsets[4] := StreamPos;
-      AddRaw(Format('4 0 obj<< /Length %d >>stream', [LContentLen]));
-      AddRaw(StringReplace(LContent, sLineBreak, #10, [rfReplaceAll]));
-      AddRaw('endstream endobj');
-      LOffsets[5] := StreamPos; AddRaw('5 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>endobj');
+      LOffsets[1] := StreamPos;
+      AddRaw('1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj');
+      LOffsets[2] := StreamPos;
+      LObjectsText := '2 0 obj<< /Type /Pages /Kids [';
+      for I := 0 to LPages.Count - 1 do
+        LObjectsText := LObjectsText + IntToStr(4 + I * 2) + ' 0 R ';
+      LObjectsText := LObjectsText + '] /Count ' + IntToStr(LPages.Count) + ' >>endobj';
+      AddRaw(LObjectsText);
+      LOffsets[3] := StreamPos;
+      AddRaw('3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>endobj');
+      for I := 0 to LPages.Count - 1 do
+      begin
+        LPage := TStringList(LPages.Objects[I]);
+        LContent := LPage.Text;
+        LContentLen := Length(AnsiString(StringReplace(LContent, sLineBreak, #10, [rfReplaceAll])));
+        LOffsets[4 + I * 2] := StreamPos;
+        AddRaw(Format('%d 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents %d 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj',
+          [4 + I * 2, 5 + I * 2]));
+        LOffsets[5 + I * 2] := StreamPos;
+        AddRaw(Format('%d 0 obj<< /Length %d >>stream', [5 + I * 2, LContentLen]));
+        AddRaw(StringReplace(LContent, sLineBreak, #10, [rfReplaceAll]));
+        AddRaw('endstream endobj');
+      end;
+      I := StreamPos;
       AddRaw('xref');
-      AddRaw('0 6');
+      AddRaw(Format('0 %d', [LObjectCount + 1]));
       AddRaw('0000000000 65535 f ');
-      for I := 1 to 5 do
-        AddRaw(Format('%.10d 00000 n ', [LOffsets[I]]));
-      AddRaw('trailer<< /Size 6 /Root 1 0 R >>');
-      AddRaw(Format('startxref%s%d', [sLineBreak, StreamPos]));
+      for J := 1 to LObjectCount do
+        AddRaw(Format('%.10d 00000 n ', [LOffsets[J]]));
+      AddRaw(Format('trailer<< /Size %d /Root 1 0 R >>', [LObjectCount + 1]));
+      AddRaw(Format('startxref%s%d', [sLineBreak, I]));
       AddRaw('%%EOF');
       LStream.SaveToFile(AFileName, TEncoding.ASCII);
     finally
+      for I := 0 to LPages.Count - 1 do
+        LPages.Objects[I].Free;
+      LPages.Free;
       LStream.Free;
     end;
   end;
@@ -1090,6 +1213,7 @@ begin
   QPedido := TFDQuery.Create(nil);
   QItens := TFDQuery.Create(nil);
   LConteudo := TStringList.Create;
+  LDescricaoLinhas := TStringList.Create;
   try
     QPedido.Connection := dmApp.FDConnection;
     QPedido.SQL.Text := 'select representative_code, vendas1_json, coalesce(sent_at, created_at) dt_ref, numdoc_remote from outbound_pedido where id = :p0';
@@ -1145,25 +1269,55 @@ begin
     LConteudo.Add('CLIENTE.......: ' + IntToStr(LCodCliente) + ' - ' + LCli);
     LConteudo.Add('DATA..........: ' + LData + ' ' + LHora);
     LConteudo.Add('');
-    LConteudo.Add(PadRight('CODIGO', 10) + PadRight('DESCRICAO', 45) + PadRight('UND', 6) + PadLeft('QTDE', 8) + PadLeft('PRECO', 12) + PadLeft('TOTAL', 12));
-    LConteudo.Add(StringOfChar('-', 95));
+    LConteudo.Add(PadRight('CODIGO', 8) + PadRight('DESCRICAO', 40) + PadRight('UND', 5) + PadLeft('QTDE', 8) + PadLeft('PRECO', 10) + PadLeft('TOTAL', 10));
+    LConteudo.Add(StringOfChar('-', 81));
+    LItemZebra := False;
     while not QItens.Eof do
     begin
       LVenda2 := QItens.FieldByName('vendas2_json').AsString;
-      LConteudo.Add(
-        PadRight(JsonFieldAsString(LVenda2, 'cod_produto'), 10) +
-        PadRight(Copy(JsonFieldAsString(LVenda2, 'nom_produto'), 1, 45), 45) +
-        PadRight(JsonFieldAsString(LVenda2, 'unidade'), 6) +
-        PadLeft(FormatFloat('#,##0.###', JsonFieldAsFloat(LVenda2, 'qtd'), LFS), 8) +
-        PadLeft(FormatFloat('#,##0.00', JsonFieldAsFloat(LVenda2, 'preco'), LFS), 12) +
-        PadLeft(FormatFloat('#,##0.00', JsonFieldAsFloat(LVenda2, 'total_item'), LFS), 12)
-      );
+      LDescricao := Trim(JsonFieldAsString(LVenda2, 'nom_produto'));
+      LUnidade := JsonFieldAsString(LVenda2, 'unidade');
+      NormalizeDescriptionUnit(LDescricao, LUnidade);
+      LDescricaoLinhas.Clear;
+      while Length(LDescricao) > 40 do
+      begin
+        LDescricaoOffset := LastDelimiter(' ', Copy(LDescricao, 1, 40));
+        if LDescricaoOffset <= 1 then
+          LDescricaoOffset := 40;
+        LDescricaoLinhas.Add(Trim(Copy(LDescricao, 1, LDescricaoOffset)));
+        Delete(LDescricao, 1, LDescricaoOffset);
+        LDescricao := TrimLeft(LDescricao);
+      end;
+      LDescricaoLinhas.Add(LDescricao);
+      if LItemZebra then
+        LConteudo.Add('#ITEMZ#')
+      else
+        LConteudo.Add('#ITEMW#');
+      for LDescricaoOffset := 0 to LDescricaoLinhas.Count - 1 do
+      begin
+        if LDescricaoOffset = 0 then
+          LConteudo.Add(
+            PadRight(JsonFieldAsString(LVenda2, 'cod_produto'), 8) +
+            PadRight(LDescricaoLinhas[LDescricaoOffset], 40) +
+            PadRight(LUnidade, 5) +
+            PadLeft(FormatFloat('#,##0.###', JsonFieldAsFloat(LVenda2, 'qtd'), LFS), 8) +
+            PadLeft(FormatFloat('#,##0.00', JsonFieldAsFloat(LVenda2, 'preco'), LFS), 10) +
+            PadLeft(FormatFloat('#,##0.00', JsonFieldAsFloat(LVenda2, 'total_item'), LFS), 10))
+        else
+          LConteudo.Add(StringOfChar(' ', 8) + PadRight(LDescricaoLinhas[LDescricaoOffset], 40) +
+            PadRight('', 5) + StringOfChar(' ', 28));
+      end;
+      LConteudo.Add('#ENDITEM#');
+      LItemZebra := not LItemZebra;
       LTot := LTot + JsonFieldAsFloat(LVenda2, 'total_item');
       QItens.Next;
     end;
 
-    LConteudo.Add(StringOfChar('-', 95));
-    LConteudo.Add(PadRight('CONDICAO DE PAGTO.: ' + LFop + ' - ' + LPrazo, 68) + PadLeft('TOTAL: ' + FormatFloat('#,###,##0.00', LTot, LFS), 25));
+    LConteudo.Add(StringOfChar('-', 81));
+    LTotalTexto := FormatFloat('#,###,##0.00', LTot, LFS);
+    LTotalLabelWidth := Max(0, 81 - Length(LTotalTexto) - Length('TOTAL: '));
+    LConteudo.Add(PadRight('CONDICAO DE PAGTO.: ' + LFop + ' - ' + LPrazo, LTotalLabelWidth) +
+      'TOTAL: ' + LTotalTexto);
 
 
     LPdfFile := IncludeTrailingPathDelimiter(GetPdfOutputDir) + Format('pedido_digitado_%d.pdf', [APedidoId]);
@@ -1182,6 +1336,7 @@ begin
 {$ENDIF}
   finally
     LConteudo.Free;
+    LDescricaoLinhas.Free;
     QItens.Free;
     QPedido.Free;
   end;

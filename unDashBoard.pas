@@ -140,6 +140,7 @@ uses
   System.Math,
   unDMApp,
   unPrincipal,
+  unFuncoes,
   unAndroidComboFix;
 
 function JsonFloat(AObj: TJSONObject; const AName: string): Double;
@@ -749,9 +750,7 @@ begin
     LMargin := 18
   else
     LMargin := 12;
-  LBottomSafe := 0;
-  if not LIsLandscape then
-    LBottomSafe := 60;
+  LBottomSafe := AndroidBottomSafeMargin(LIsLandscape);
 
   if LIsLandscape then
     TopBar.Height := 76
@@ -925,3 +924,4 @@ begin
 end;
 
 end.
+

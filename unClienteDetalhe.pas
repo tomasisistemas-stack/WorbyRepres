@@ -6,7 +6,8 @@ uses
   System.SysUtils, System.Types, System.UITypes, System.Classes, System.Variants,
   FMX.Types, FMX.Controls, FMX.Forms, FMX.Graphics, FMX.Dialogs, FMX.Objects,
   FMX.Controls.Presentation, FMX.StdCtrls, FMX.Layouts, FMX.DialogService.Async, Data.DB,
-  FireDAC.Comp.Client, FMX.ScrollBox;
+  FireDAC.Comp.Client, FMX.ScrollBox, FMX.ListView, FMX.ListView.Types, FMX.ListView.Appearances,
+  FMX.ListView.Adapters.Base;
 
 type
   TfrmClienteDetalhe = class(TForm)
@@ -39,12 +40,8 @@ type
     Layout5: TLayout;
     LbDocDireita: TLabel;
     Layout6: TLayout;
-    LayoutLimite: TLayout;
-    LbLimite: TLabel;
-    LayoutSaldo: TLayout;
-    LbSaldo: TLabel;
-    LayoutSituacaoTitulo: TLayout;
-    LbSituacaoTitulo: TLabel;
+    LvBoletosAbertos: TListView;
+    Label1: TLabel;
     procedure BtnCancelarClick(Sender: TObject);
     procedure BtnPedidoClick(Sender: TObject);
     procedure FormResize(Sender: TObject);
@@ -56,6 +53,7 @@ type
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
     procedure RenderCliente;
     procedure CarregarDoSqlite(const AId: string);
+    procedure CarregarBoletos(const AId: string);
     function SafeFieldAsString(AQuery: TFDQuery; const ACampo: string): string;
     function SafeFieldAsCurrency(AQuery: TFDQuery; const ACampo: string): Currency;
     procedure ApplyOrientationLayout;
@@ -120,7 +118,7 @@ var
   LBottomSafe: Single;
 begin
   if Assigned(CardSituacao) then
-    CardSituacao.Visible := False;
+    CardSituacao.Visible := True;
 
   LIsLandscape := Width > Height;
 
@@ -131,9 +129,7 @@ begin
     LbTitulo.Visible := True;
     LbTitulo.BringToFront;
 
-    LBottomSafe := AndroidNavigationInset(False);
-    if LBottomSafe < 56 then
-      LBottomSafe := 56;
+    LBottomSafe := AndroidBottomSafeMargin(LIsLandscape);
 
     PresentedScrollBox1.Padding.Top := 8;
     Layout1.Align := TAlignLayout.Bottom;
@@ -176,8 +172,8 @@ begin
     CardSituacao.Position.X := LRightX;
     CardSituacao.Position.Y := LTop + CardEndereco.Height + LGap;
 
-    Layout2.Align := TAlignLayout.MostRight; // Pedido/Gravar à direita
-    Layout3.Align := TAlignLayout.MostLeft;  // Cancelar à esquerda
+    Layout2.Align := TAlignLayout.MostRight; // Pedido/Gravar ? direita
+    Layout3.Align := TAlignLayout.MostLeft;  // Cancelar ? esquerda
     Layout2.Width := Width / 2;
     Layout3.Width := Width / 2;
     BtnPedido.Align := TAlignLayout.Client;
@@ -198,7 +194,7 @@ begin
     LbTitulo.Visible := True;
 
     PresentedScrollBox1.Padding.Top := 0;
-    LBottomSafe := 58;
+    LBottomSafe := AndroidBottomSafeMargin(LIsLandscape);
 
     Layout1.Align := TAlignLayout.MostBottom;
     Layout1.Height := 58 + LBottomSafe;
@@ -234,8 +230,8 @@ begin
     CardEndereco.Position.Y := 384;
     CardSituacao.Position.Y := 512;
 
-    Layout2.Align := TAlignLayout.MostRight; // Pedido/Gravar à direita
-    Layout3.Align := TAlignLayout.MostLeft;  // Cancelar à esquerda
+    Layout2.Align := TAlignLayout.MostRight; // Pedido/Gravar ? direita
+    Layout3.Align := TAlignLayout.MostLeft;  // Cancelar ? esquerda
     Layout2.Width := Width / 2;
     Layout3.Width := Width / 2;
     BtnPedido.Align := TAlignLayout.Client;
@@ -247,6 +243,11 @@ begin
     BtnCancelar.Margins.Bottom := LBottomSafe + 5;
     BtnPedido.Margins.Bottom := LBottomSafe + 5;
 
+  end;
+
+  if Assigned(CardSituacao) then
+  begin
+    LvBoletosAbertos.SetBounds(20, 20, CardSituacao.Width - 40, CardSituacao.Height - 30);
   end;
 end;
 
@@ -288,6 +289,16 @@ var
   LDoc: string;
   LLimite: Currency;
   LSaldo: Currency;
+  LDTAUltimaVenda: string;
+  LMediaValorPedido: Double;
+  QBoletos: TFDQuery;
+  LQtdAbertos: Integer;
+  LQtdVencidos: Integer;
+  LValorAberto: Currency;
+  LValorVencido: Currency;
+  LItemBoleto: TListViewItem;
+  LDataVencimento: string;
+  LVencido: Boolean;
 begin
   if AId = '' then
     Exit;
@@ -307,7 +318,8 @@ begin
       'A.CONTATO_PREFERIDO, A.ESTILO, A.CONTATO_FONE, A.CONTATO_EMAIL, A.CONTATO_CORRESPONDENCIA, ' +
       'A.ID_ANTIGO, A.PONTO_FIDELIDADE, A.ID_REPRESENTANTE, A.ID_FOP, A.PRAZO_MAXIMO, A.DESCONTO_MAXIMO, A.DESCONTO_ESPECIAL, ' +
       'A.CLIENTE_BLOQUEADO, A.STATUS, A.COD_EMPRESA, A.NR_ENDERECO, A.NFE_EMAIL, A.SINCRONIZAR_PALM, A.EMAIL_ADICIONAL1, EMAIL_ADICIONAL2, EMAIL_ADICIONAL3, ' +
-      'A.WHASTAPP, A.PRE_CADASTRO, a.COD_CIDADE, C.NOM_CIDADE||''-''||C.UF AS CID_NOME, A.SALDO FROM CLIENTE A ' +
+      'A.WHASTAPP, A.PRE_CADASTRO, a.COD_CIDADE, C.NOM_CIDADE||''-''||C.UF AS CID_NOME, A.SALDO, ' +
+      'A.DTA_ULTIMA_VENDA, A.MEDIA_VALOR_PEDIDO FROM CLIENTE A ' +
       'LEFT JOIN CIDADES C ON C.COD_CIDADE = A.COD_CIDADE ' +
       'WHERE A.COD_CLIENTE = :ID';
     Q.ParamByName('id').AsString := AId;
@@ -332,6 +344,17 @@ begin
       LCPF := SafeFieldAsString(Q, 'CPF');
       LLimite := SafeFieldAsCurrency(Q, 'LIMITE');
       LSaldo := SafeFieldAsCurrency(Q, 'SALDO');
+
+      LDTAUltimaVenda := SafeFieldAsString(Q, 'DTA_ULTIMA_VENDA');
+      if LDTAUltimaVenda <> '' then
+      begin
+        if Length(LDTAUltimaVenda) >= 10 then
+          LDTAUltimaVenda := Copy(LDTAUltimaVenda, 9, 2) + '/' + Copy(LDTAUltimaVenda, 6, 2) + '/' + Copy(LDTAUltimaVenda, 1, 4);
+      end;
+
+      LMediaValorPedido := 0;
+      if Q.FindField('MEDIA_VALOR_PEDIDO') <> nil then
+        LMediaValorPedido := Q.FieldByName('MEDIA_VALOR_PEDIDO').AsFloat;
 
       if LNome <> '' then
         LbNome.Text := LNome
@@ -399,13 +422,6 @@ begin
       if LbEndereco2.Text = '' then
         LbEndereco2.Text := '--';
 
-      if (LStatus <> '') or (LBloqueado <> '') then
-        LbSituacaoTitulo.Text := 'Situacao: ' + Trim(LStatus + ' ' + LBloqueado)
-      else
-        LbSituacaoTitulo.Text := 'Situacao: --';
-
-      LbLimite.Text := Format('Limite: R$ %.2f', [LLimite]);
-      LbSaldo.Text := Format('Saldo: R$ %.2f', [LSaldo]);
 
       FNome := LbNome.Text;
       FCidade := LCidade;
@@ -415,6 +431,99 @@ begin
   end;
 end;
 
+procedure TfrmClienteDetalhe.CarregarBoletos(const AId: string);
+var
+  QBoletos: TFDQuery;
+  LQtdAbertos: Integer;
+  LQtdVencidos: Integer;
+  LValorAberto: Currency;
+  LValorVencido: Currency;
+  LItemBoleto: TListViewItem;
+  LDataVencimento: string;
+  LVencido: Boolean;
+  LValorTitulo: Currency;
+  LTituloSeq: string;
+  LAlturaLista: Single;
+begin
+  if not Assigned(CardSituacao) then
+    Exit;
+
+  CardSituacao.Visible := True;
+  LvBoletosAbertos.Visible := True;
+  LvBoletosAbertos.BeginUpdate;
+  try
+    LvBoletosAbertos.Items.Clear;
+    LQtdAbertos := 0;
+    LQtdVencidos := 0;
+    LValorAberto := 0;
+    LValorVencido := 0;
+
+    if (Trim(AId) = '') or (not Assigned(dmApp)) or
+       (not dmApp.FDConnection.Connected) then
+      Exit;
+
+    QBoletos := TFDQuery.Create(nil);
+    try
+      QBoletos.Connection := dmApp.FDConnection;
+      QBoletos.SQL.Text :=
+        'select coalesce(titulo, '''') as titulo, coalesce(sequencia, 0) as sequencia, dtaven, ' +
+         'coalesce(valor, 0) - coalesce(valor_recebido, 0) as valor_aberto, ' +
+        'case when date(case ' +
+        '  when substr(trim(dtaven), 5, 1) = ''-'' then substr(trim(dtaven), 1, 10) ' +
+        '  when substr(trim(dtaven), 3, 1) = ''/'' then substr(trim(dtaven), 7, 4) || ''-'' || ' +
+        '       substr(trim(dtaven), 4, 2) || ''-'' || substr(trim(dtaven), 1, 2) ' +
+        '  else trim(dtaven) end) < date(''now'', ''localtime'') then 1 else 0 end as vencido ' +
+          'from cr1 where cod_cliente = :p0 and trim(coalesce(dtarec, '''')) = '''' ' +
+          'order by dtaven, titulo, sequencia';
+      QBoletos.ParamByName('p0').AsString := Trim(AId);
+      QBoletos.Open;
+      while not QBoletos.Eof do
+      begin
+        LDataVencimento := Trim(QBoletos.FieldByName('dtaven').AsString);
+        if (Length(LDataVencimento) >= 10) and (LDataVencimento[5] = '-') then
+          LDataVencimento := Copy(LDataVencimento, 9, 2) + '/' +
+            Copy(LDataVencimento, 6, 2) + '/' + Copy(LDataVencimento, 1, 4);
+        LValorTitulo := QBoletos.FieldByName('valor_aberto').AsCurrency;
+        LTituloSeq := Trim(QBoletos.FieldByName('titulo').AsString) + '-' +
+          QBoletos.FieldByName('sequencia').AsString;
+        LVencido := QBoletos.FieldByName('vencido').AsInteger = 1;
+        LItemBoleto := LvBoletosAbertos.Items.Add;
+        if LVencido then
+        begin
+          Inc(LQtdVencidos);
+          LValorVencido := LValorVencido + LValorTitulo;
+        end
+        else
+        begin
+          Inc(LQtdAbertos);
+          LValorAberto := LValorAberto + LValorTitulo;
+        end;
+        LItemBoleto.Text := LTituloSeq + ' | ' + Format('R$ %.2f', [LValorTitulo]);
+        LItemBoleto.Detail := 'Vcto: ' + LDataVencimento;
+        if LVencido then
+        begin
+          if Assigned(LItemBoleto.Objects.TextObject) then
+            LItemBoleto.Objects.TextObject.TextColor := TAlphaColor($FFFF0000);
+          if Assigned(LItemBoleto.Objects.DetailObject) then
+            LItemBoleto.Objects.DetailObject.TextColor := TAlphaColor($FFFF0000);
+        end;
+        QBoletos.Next;
+      end;
+    finally
+      QBoletos.Free;
+    end;
+
+      LAlturaLista := 30 + LvBoletosAbertos.Items.Count * 38;
+      if LAlturaLista < 90 then
+        LAlturaLista := 90;
+      if LAlturaLista > 210 then
+        LAlturaLista := 210;
+      CardSituacao.Height := LAlturaLista + 30;
+      LvBoletosAbertos.SetBounds(20, 20, CardSituacao.Width - 40, LAlturaLista);
+  finally
+    LvBoletosAbertos.EndUpdate;
+  end;
+end;
 procedure TfrmClienteDetalhe.RenderCliente;
 begin
   if FNome <> '' then
@@ -435,6 +544,7 @@ begin
   FDocDireita := '';
   RenderCliente;
   CarregarDoSqlite(ACodigo);
+  CarregarBoletos(ACodigo);
   ApplyOrientationLayout;
 end;
 
@@ -442,6 +552,12 @@ procedure TfrmClienteDetalhe.DoShow;
 begin
   inherited;
   OnClose := FormClose;
+  if FCodigo <> '' then
+  begin
+    ApplyOrientationLayout;
+    CarregarDoSqlite(FCodigo);
+    CarregarBoletos(FCodigo);
+  end;
 end;
 
 procedure TfrmClienteDetalhe.FormClose(Sender: TObject; var Action: TCloseAction);

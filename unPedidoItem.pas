@@ -130,17 +130,22 @@ begin
   if (LW <= 0) or (LH <= 0) then
     Exit;
 
+  LLandscape := LW > LH;
   LMargin := Max(12, LW * 0.05);
   LGap := 10;
-  LTopH := EnsureRange(LH * 0.15, 78, 120);
-  if Min(LW, LH) >= 600 then
+  if LLandscape then
+    LTopH := EnsureRange(LH * 0.12, 58, 78)
+  else
+    LTopH := EnsureRange(LH * 0.15, 78, 120);
+  if LLandscape and (Min(LW, LH) >= 600) then
+    LContentW := Min(LW - (LMargin * 2), 760)
+  else if Min(LW, LH) >= 600 then
     LContentW := Min(LW - (LMargin * 2), 720)
   else
     LContentW := Min(LW - (LMargin * 2), 560);
   if LContentW < 260 then
     LContentW := LW - (LMargin * 2);
   LX := (LW - LContentW) * 0.5;
-  LLandscape := LW > LH;
   LPad := 18;
 
   TopBar.SetBounds(0, 0, LW, LTopH);
@@ -149,7 +154,7 @@ begin
 
   if LLandscape then
   begin
-    LProdutoH := 132;
+    LProdutoH := 124;
     LPrecoH := 70;
     LTotalH := 70;
     CardProduto.SetBounds(LX, LTopH + LGap, LContentW, LProdutoH);
@@ -280,17 +285,18 @@ begin
   end;
 
 
-  LRodapeBottom := 0;
-
+  LRodapeBottom := AndroidBottomSafeMargin(LLandscape);
   if LLandscape then
-    LBtnY := LH - LRodapeH - LRodapeBottom - 6
-  else begin
-   // LBtnY := LH - LRodapeH - LRodapeBottom - 10;
+    LRodapeH := 56
+  else
+    LRodapeH := 72;
 
-    LRodapeBottom := 50;
-  end;
-  lyRodape.Margins.Bottom := LRodapeBottom;
-
+  lyRodape.Align := TAlignLayout.None;
+  lyRodape.Margins.Bottom := 0;
+  LBtnY := LH - LRodapeH - LRodapeBottom - 6;
+  if LBtnY < CardTotal.Position.Y + CardTotal.Height + 8 then
+    LBtnY := CardTotal.Position.Y + CardTotal.Height + 8;
+  lyRodape.SetBounds(LX, LBtnY, LContentW, LRodapeH);
 
   LBtnW := lyRodape.Width * 0.5;
   Layout2.Align := TAlignLayout.None;

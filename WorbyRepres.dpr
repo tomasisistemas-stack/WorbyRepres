@@ -3,9 +3,7 @@ program WorbyRepres;
 uses
   System.StartUpCopy,
   FMX.Forms,
-  {$IFDEF ANDROID}
-  ServiceGeoWorker in '..\Service\ServiceGeoWorker.pas',
-  ServiceUnit in '..\Service\ServiceUnit.pas' {LocationTrackingModule: TAndroidService},
+  {$IFDEF ANDROID}  ServiceUnit in '..\Service\ServiceUnit.pas' {LocationTrackingModule: TAndroidService},
   {$ENDIF}
   unLogin in 'unLogin.pas' {frmLogin},
   unPrincipal in 'unPrincipal.pas' {frmPrincipal},
@@ -23,7 +21,15 @@ uses
   unClienteCadastro in 'unClienteCadastro.pas' {frmClienteCadastro},
   unCidadeBusca in 'unCidadeBusca.pas' {frmCidadeBusca},
   unOffline in 'unOffline.pas' {frmOffline},
-  unDashBoard in 'unDashBoard.pas' {frmDashBoard};
+  unDashBoard in 'unDashBoard.pas' {frmDashBoard},
+  unVisitas in 'unVisitas.pas' {frmVisitas},
+  {$IFDEF ANDROID}
+  unVisitasMapa in 'unVisitasMapa.pas' {frmVisitasMapa},
+  unVisitaHistoricoMapa in 'unVisitaHistoricoMapa.pas' {frmVisitaHistoricoMapa},
+  {$ENDIF}
+  unVisitaCheckin in 'unVisitaCheckin.pas' {frmVisitaCheckin},
+  unVisitaResultado in 'unVisitaResultado.pas' {frmVisitaResultado},
+  unVisitaHistorico in 'unVisitaHistorico.pas' {frmVisitaHistorico};
 
 {$R *.res}
 
@@ -44,5 +50,6 @@ begin
   Application.Run;
 
 end.
+
 
 

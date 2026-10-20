@@ -36,6 +36,8 @@ type
     LbSaldo: TLabel;
     LayoutSituacaoTitulo: TLayout;
     LbSituacaoTitulo: TLabel;
+    LvBoletosAbertos: TListView;
+    LabelBoletosAbertos: TLabel;
     BackgroundRect: TRectangle;
     TabMenu: TTabControl;
     TabCliente: TTabItem;
@@ -199,7 +201,9 @@ type
       const ACodRepresentante: Integer; const AFuncionario: string): Double;
     procedure FecharPedido;
     procedure CancelarPedidoAtual;
+    function PedidoDadosCompletos: Boolean;
     procedure CarregarSituacaoDoSqlite(const ACodigo: string);
+    procedure CarregarBoletos(const ACodigo: string);
     procedure ListarProdutos;
     procedure ListarPromocoes;
     procedure ListarUltimasCompras;
@@ -236,6 +240,8 @@ type
     function CountPrazosFormaPgto(const ACodFop: Integer): Integer;
     function PrazoPertenceFormaPgto(const ACodFop, ACodPrazo: Integer): Boolean;
     procedure AplicarPrazoFormaPgto;
+    function ClienteTemBoletoVencido: Boolean;
+    procedure ConcluirGravacao;
   protected
     procedure DoShow; override;
     procedure Resize; override;
@@ -265,7 +271,7 @@ implementation
 uses
   unFormaPgto,
   unPrazoPgto, unDMApp, unPedidoItem, unFuncoes, unPedidosDigitados,
-  unAndroidComboFix;
+  unAndroidComboFix, unVisitaResultado;
 
 procedure TfrmPedido.DoShow;
 begin
@@ -475,6 +481,7 @@ var
   LProdutosScroll: TControl;
   LListW: Single;
   LListX: Single;
+  LAlturaLista: Single;
   I: Integer;
   procedure AjustarLarguraListView(ALv: TListView; AReservaDireita: Single = 100);
   var
@@ -497,7 +504,7 @@ var
       if LIsLandscape or LIsTabletPortrait then
         ALv.ItemAppearance.ItemHeight := 76
       else
-        ALv.ItemAppearance.ItemHeight := 82;
+        ALv.ItemAppearance.ItemHeight := 80;
       ALv.EditMode := False;
       ALv.ItemAppearanceObjects.ItemObjects.Accessory.Visible := False;
 
@@ -530,17 +537,19 @@ var
         ALv.ItemAppearanceObjects.ItemObjects.Detail.Font.Size := 11
       else
         ALv.ItemAppearanceObjects.ItemObjects.Detail.Font.Size := 10.5;
-      ALv.ItemAppearanceObjects.ItemObjects.Detail.Height := 20;
+      ALv.ItemAppearanceObjects.ItemObjects.Detail.Height := 25;
       if LIsLandscape or LIsTabletPortrait then
         ALv.ItemAppearanceObjects.ItemObjects.Detail.PlaceOffset.X := 64
       else
         ALv.ItemAppearanceObjects.ItemObjects.Detail.PlaceOffset.X := 50;
-      ALv.ItemAppearanceObjects.ItemObjects.Detail.PlaceOffset.Y := 50;
+      ALv.ItemAppearanceObjects.ItemObjects.Detail.PlaceOffset.Y := 45;
       ALv.ItemAppearanceObjects.ItemObjects.Detail.TextVertAlign := TTextAlign.Leading;
     end;
   begin
     AjustarLista(LvProdutos);
     AjustarLista(LvPromocao);
+    AjustarLista(LvUltimasCompras);
+    AjustarLista(LvDigitados);
   end;
   procedure AjustarProdutosPaisagem;
   var
@@ -769,6 +778,107 @@ var
       AjustarLarguraListView(LvPromocao, 110);
     end;
   end;
+  procedure AjustarBuscaProdutosLike(ARoot: TControl; ACard: TRectangle; ALbBuscar: TLabel;
+    AEdit: TEdit; ACombo: TComboBox; ABtn: TImage; AListLayout: TLayout;
+    AListView: TListView; AActions: TLayout = nil);
+  var
+    LInnerW: Single;
+    LComboW: Single;
+    LBtnW2: Single;
+    LEditW: Single;
+    LTop: Single;
+    LListBottom: Single;
+  begin
+    if not Assigned(ARoot) or not Assigned(ACard) or not Assigned(AListLayout) or not Assigned(AListView) then
+      Exit;
+
+    if LIsLandscape or LIsTabletPortrait then
+    begin
+      ARoot.Align := TAlignLayout.None;
+      ARoot.SetBounds(LListX, 8, LListW, Max(120, TabMenu.Height - 16));
+
+      ACard.Align := TAlignLayout.None;
+      if LIsTabletPortrait then
+        ACard.Height := 76
+      else
+        ACard.Height := 48;
+      ACard.SetBounds(0, 0, LListW, ACard.Height);
+
+      LInnerW := Max(220, ACard.Width - 36);
+      if LIsTabletPortrait then
+      begin
+        LBtnW2 := 58;
+        LComboW := 132;
+      end
+      else
+      begin
+        LBtnW2 := 95;
+        LComboW := 120;
+      end;
+      LEditW := Max(120, LInnerW - (LComboW + LBtnW2 + 8));
+
+      if Assigned(ALbBuscar) then
+      begin
+        ALbBuscar.Visible := LIsTabletPortrait;
+        ALbBuscar.Position.X := 18;
+        if LIsTabletPortrait then
+          ALbBuscar.Position.Y := 4;
+      end;
+      if Assigned(AEdit) then
+      begin
+        AEdit.Position.X := 18;
+        if LIsTabletPortrait then
+          AEdit.Position.Y := 30
+        else
+          AEdit.Position.Y := 8;
+        AEdit.Width := LEditW;
+      end;
+      if Assigned(ACombo) then
+      begin
+        if Assigned(AEdit) then
+          ACombo.Position.X := AEdit.Position.X + LEditW + 4;
+        if LIsTabletPortrait then
+          ACombo.Position.Y := 30
+        else
+          ACombo.Position.Y := 8;
+        ACombo.Width := LComboW;
+      end;
+      if Assigned(ABtn) then
+      begin
+        if LIsTabletPortrait then
+          ABtn.Position.Y := 30
+        else
+          ABtn.Position.Y := 8;
+        ABtn.Width := LBtnW2;
+        if Assigned(ACombo) then
+          ABtn.Position.X := ACombo.Position.X + LComboW + 4;
+      end;
+
+      LTop := ACard.Position.Y + ACard.Height + 6;
+      LListBottom := ARoot.Height - 8;
+      if Assigned(AActions) then
+      begin
+        AActions.Align := TAlignLayout.None;
+        AActions.SetBounds(0, ARoot.Height - 46, LListW, 40);
+        LListBottom := AActions.Position.Y - 8;
+      end;
+
+      AListLayout.Align := TAlignLayout.None;
+      AListLayout.SetBounds(0, LTop, LListW, Max(120, LListBottom - LTop));
+      AListView.Align := TAlignLayout.None;
+      AListView.SetBounds(0, 0, AListLayout.Width, AListLayout.Height);
+      AjustarLarguraListView(AListView, 112);
+    end
+    else
+    begin
+      ARoot.Align := TAlignLayout.Client;
+      ACard.Align := TAlignLayout.Top;
+      AListLayout.Align := TAlignLayout.Client;
+      AListView.Align := TAlignLayout.Client;
+      if Assigned(AActions) then
+        AActions.Align := TAlignLayout.Bottom;
+    end;
+  end;
   procedure AjustarClientePaisagem;
   var
     LGap: Single;
@@ -797,13 +907,19 @@ var
       if Assigned(CardPerfil) then CardPerfil.Height := 120;
       if Assigned(CardSituacao) then CardSituacao.Height := 102;
       if Assigned(CardContatoDyn) then CardContatoDyn.Height := 96;
-      if Assigned(CardEnderecoDyn) then CardEnderecoDyn.Height := 96;
+      if Assigned(CardEnderecoDyn) then CardEnderecoDyn.Height := 130;
       if Assigned(CardFormaPgto) then CardFormaPgto.Height := 72;
       if Assigned(Rectangle1) then Rectangle1.Height := 72;
 
       CardPerfil.Width := LColW;
       CardContatoDyn.Width := LColW;
       CardEnderecoDyn.Width := LColW;
+      if Assigned(CardSituacao) then
+      begin
+        CardSituacao.Width := LColW;
+        CardSituacao.Position.X := LRightX;
+        CardSituacao.Position.Y := LTopY + CardEnderecoDyn.Height + LGap;
+      end;
 
       CardPerfil.Position.X := LLeftX;
       CardPerfil.Position.Y := LTopY;
@@ -859,6 +975,12 @@ var
       CardContatoDyn.Position.Y := CardPerfil.Position.Y + CardPerfil.Height + LGap;
       CardEnderecoDyn.Position.X := LLeftX;
       CardEnderecoDyn.Position.Y := CardContatoDyn.Position.Y + CardContatoDyn.Height + LGap;
+      if Assigned(CardSituacao) then
+      begin
+        CardSituacao.Width := LColW;
+        CardSituacao.Position.X := LLeftX;
+        CardSituacao.Position.Y := CardEnderecoDyn.Position.Y + CardEnderecoDyn.Height + LGap;
+      end;
 
       if Assigned(LbNome) then LbNome.TextSettings.Font.Size := 16;
       if Assigned(LbDoc) then LbDoc.TextSettings.Font.Size := 14;
@@ -888,7 +1010,7 @@ var
       if Assigned(CardPerfil) then CardPerfil.Height := 95;
       if Assigned(CardSituacao) then CardSituacao.Height := 80;
       if Assigned(CardContatoDyn) then CardContatoDyn.Height := 88;
-      if Assigned(CardEnderecoDyn) then CardEnderecoDyn.Height := 88;
+      if Assigned(CardEnderecoDyn) then CardEnderecoDyn.Height := 110;
       if Assigned(CardFormaPgto) then CardFormaPgto.Height := 60;
       if Assigned(Rectangle1) then Rectangle1.Height := 60;
 
@@ -903,6 +1025,12 @@ var
       CardContatoDyn.Position.Y := CardPerfil.Position.Y + CardPerfil.Height + LGap;
       CardEnderecoDyn.Position.X := 18;
       CardEnderecoDyn.Position.Y := CardContatoDyn.Position.Y + CardContatoDyn.Height + LGap;
+      if Assigned(CardSituacao) then
+      begin
+        CardSituacao.Width := 324;
+        CardSituacao.Position.X := 18;
+        CardSituacao.Position.Y := CardEnderecoDyn.Position.Y + CardEnderecoDyn.Height + LGap;
+      end;
 
       if Assigned(LbNome) then LbNome.TextSettings.Font.Size := 15;
       if Assigned(LbDoc) then LbDoc.TextSettings.Font.Size := 13;
@@ -933,7 +1061,15 @@ begin
   SyncCardsTotalPgtoTexto;
 
   if Assigned(CardSituacao) then
-    CardSituacao.Visible := False;
+    CardSituacao.Visible := True;
+  if Assigned(LayoutSituacaoTitulo) then
+    LayoutSituacaoTitulo.Visible := False;
+  if Assigned(LayoutLimite) then
+    LayoutLimite.Visible := False;
+  if Assigned(LayoutSaldo) then
+    LayoutSaldo.Visible := False;
+  if Assigned(LabelBoletosAbertos) then
+    LabelBoletosAbertos.Visible := True;
 
   if Assigned(CardFormaPgtoTotal) then
     CardFormaPgtoTotal.Index := 0;
@@ -953,26 +1089,27 @@ begin
 
   LIsLandscape := ClientWidth > ClientHeight;
   LIsTabletPortrait := (not LIsLandscape) and (ClientWidth >= 600);
-  LBottomMargin := 0;
+  LBottomMargin := AndroidBottomSafeMargin(LIsLandscape);
 
   if LIsLandscape then
     TopBar.Height := 72
   else begin
     TopBar.Height := 96;
-    LBottomMargin := 50;
   end;
   LbTitulo.Position.Y := (TopBar.Height - LbTitulo.Height) * 0.75;
 
   LFooterH := 50;
   LFooterTotalH := 36;
-  LFooterW := Min(ClientWidth - 16, 560);
+  if LIsLandscape then
+    LFooterW := Min(ClientWidth - 48, 1040)
+  else if LIsTabletPortrait then
+    LFooterW := Min(ClientWidth - 32, 680)
+  else
+    LFooterW := Min(ClientWidth - 16, 560);
   if LFooterW < 260 then
     LFooterW := ClientWidth - 8;
 
-  if LIsLandscape then
-    LFooterTotalW := Min(ClientWidth - 32, 980)
-  else
-    LFooterTotalW := LFooterW;
+  LFooterTotalW := LFooterW;
   if LFooterTotalW < 260 then
     LFooterTotalW := ClientWidth - 8;
 
@@ -1069,10 +1206,7 @@ begin
   LPromocaoList := FindComponent('LayoutPromocaoList') as TControl;
   if LIsLandscape or LIsTabletPortrait then
   begin
-    if LIsLandscape then
-      LListW := Min(ClientWidth - 32, 980)
-    else
-      LListW := Min(ClientWidth - 32, 680);
+    LListW := LFooterW;
     if LListW < 320 then
       LListW := ClientWidth - 20;
     LListX := Max(10, (ClientWidth - LListW) / 2);
@@ -1169,11 +1303,25 @@ begin
     AjustarLarguraListView(LvPromocao, 112);
   end;
 
+  AjustarBuscaProdutosLike(LayoutUltimasCompras, CardBuscaUltimas, LbBuscarUltimas,
+    EdBuscarUltimas, CbModoBuscaUltimas, BtnBuscarUltimas, LayoutUltimasList,
+    LvUltimasCompras);
+  AjustarBuscaProdutosLike(LayoutDigitados, CardBuscaDigitados, LbBuscarDigitados,
+    EdBuscarDigitados, CbModoBuscaDigitados, BtnBuscarDigitados, LayoutDigitadosList,
+    LvDigitados, LayoutDigitadosAcoes);
   if Assigned(PresentedScrollBox1) then
     PresentedScrollBox1.Padding.Bottom := 8;
 
-  AjustarClientePaisagem;
   AjustarCardContatoEndereco;
+  AjustarClientePaisagem;
+
+  if Assigned(CardSituacao) and Assigned(LvBoletosAbertos) then
+  begin
+    LvBoletosAbertos.ItemAppearance.ItemHeight := 30;
+    LAlturaLista := Max(30, LvBoletosAbertos.Items.Count * 30);
+    CardSituacao.Height := Max(72, 30 + LAlturaLista);
+    LvBoletosAbertos.SetBounds(20, 30, CardSituacao.Width - 40, LAlturaLista);
+  end;
 
   if Assigned(LayoutDigitadosAcoes) and Assigned(BtnEditarDigitado) and Assigned(BtnExcluirDigitado) then
   begin
@@ -1233,8 +1381,8 @@ begin
   if LIsLandscape then
   begin
     LEndereco1H := 24;
-    LEndereco2H := 24;
-    CardEnderecoDyn.Height := 96;
+    LEndereco2H := 45;
+    CardEnderecoDyn.Height := 130;
   end
   else if LIsTabletPortrait then
   begin
@@ -1244,9 +1392,9 @@ begin
   end
   else
   begin
-    LEndereco1H := 38;
-    LEndereco2H := 34;
-    CardEnderecoDyn.Height := 124;
+    LEndereco1H := 24;
+    LEndereco2H := 24;
+    CardEnderecoDyn.Height := 110;
   end;
 
   if Assigned(LbEndereco1Dyn) then
@@ -1362,6 +1510,8 @@ begin
   begin
     CardContatoDyn.Index := CardPerfil.Index + 1;
     CardEnderecoDyn.Index := CardContatoDyn.Index + 1;
+    if Assigned(CardSituacao) then
+      CardSituacao.Index := CardEnderecoDyn.Index + 1;
   end;
 
   CardContatoDyn.Visible := True;
@@ -1533,6 +1683,12 @@ begin
 end;
 
 procedure TfrmPedido.FecharPedido;
+var
+  LVisitaCod: Integer;
+  LVisitaNome: string;
+  LInicioTexto: string;
+  LInicioValor: Double;
+  LInicio: TDateTime;
 begin
   if FVoltarParaPedidosDigitados then
   begin
@@ -1541,16 +1697,57 @@ begin
     frmPedidosDigitados.Show;
     FVoltarParaPedidosDigitados := False;
   end;
+
+  LVisitaCod := 0;
+  try
+    LVisitaCod := StrToIntDef(Trim(dmApp.FDConnection.ExecSQLScalar(
+      'select coalesce(value, '''') from app_config where key = ''visita_pedido_cod_cliente''')), 0);
+  except
+    LVisitaCod := 0;
+  end;
+
+  if (LVisitaCod > 0) and (LVisitaCod = codCliente) and (TotalLiquidoAtual > 0) then
+  begin
+    LVisitaNome := FClienteNome;
+    LInicio := Now;
+    try
+      LVisitaNome := Trim(dmApp.FDConnection.ExecSQLScalar(
+        'select coalesce(value, '''') from app_config where key = ''visita_pedido_nome_cliente'''));
+      LInicioTexto := Trim(dmApp.FDConnection.ExecSQLScalar(
+        'select coalesce(value, '''') from app_config where key = ''visita_pedido_inicio'''));
+      LInicioValor := StrToFloatDef(LInicioTexto, 0, TFormatSettings.Invariant);
+      if LInicioValor > 0 then
+        LInicio := LInicioValor;
+    except
+      LInicio := Now;
+    end;
+
+    if LVisitaNome = '' then
+      LVisitaNome := FClienteNome;
+    if not Assigned(frmVisitaResultado) then
+      Application.CreateForm(TfrmVisitaResultado, frmVisitaResultado);
+    frmVisitaResultado.SetResultado(codCliente, LVisitaNome, LInicio);
+    frmVisitaResultado.Show;
+    dmApp.SetAppConfigValue('visita_pedido_cod_cliente', '');
+    dmApp.SetAppConfigValue('visita_pedido_nome_cliente', '');
+    dmApp.SetAppConfigValue('visita_pedido_inicio', '');
+  end;
   Close;
+end;
+
+function TfrmPedido.PedidoDadosCompletos: Boolean;
+begin
+  Result := (codCliente > 0) and (codFormaPgto > 0) and
+    (codPrazoPgto > 0) and (outboundPedidoId > 0);
+  if Result then
+    Result := dmApp.CountOutboundPedidoItens(outboundPedidoId) > 0;
 end;
 
 procedure TfrmPedido.CancelarPedidoAtual;
 var
   Q: TFDQuery;
 begin
-  // Somente para novo pedido: remove o draft ao cancelar
-  if FVoltarParaPedidosDigitados then
-    Exit;
+  // O cancelamento remove o pedido atual, inclusive quando ele esta sendo editado.
   if outboundPedidoId <= 0 then
     Exit;
 
@@ -1567,6 +1764,9 @@ begin
 
     outboundPedidoId := 0;
     dmApp.ClearAppState('pedido');
+    dmApp.SetAppConfigValue('visita_pedido_cod_cliente', '');
+    dmApp.SetAppConfigValue('visita_pedido_nome_cliente', '');
+    dmApp.SetAppConfigValue('visita_pedido_inicio', '');
   finally
     Q.Free;
   end;
@@ -1844,6 +2044,77 @@ begin
   end;
 end;
 
+procedure TfrmPedido.CarregarBoletos(const ACodigo: string);
+var
+  QBoletos: TFDQuery;
+  LItem: TListViewItem;
+  LDataVencimento: string;
+  LTituloSeq: string;
+  LValor: Currency;
+  LVencido: Boolean;
+  LAlturaLista: Single;
+begin
+  if not Assigned(LvBoletosAbertos) or not Assigned(CardSituacao) then
+    Exit;
+
+  LvBoletosAbertos.BeginUpdate;
+  try
+    LvBoletosAbertos.Items.Clear;
+    if (Trim(ACodigo) = '') or (not Assigned(dmApp)) or
+       (not dmApp.FDConnection.Connected) then
+      Exit;
+
+    QBoletos := TFDQuery.Create(nil);
+    try
+      QBoletos.Connection := dmApp.FDConnection;
+      QBoletos.SQL.Text :=
+        'select coalesce(titulo, '''') as titulo, coalesce(sequencia, 0) as sequencia, dtaven, ' +
+        'coalesce(valor, 0) - coalesce(valor_recebido, 0) as valor_aberto, ' +
+        'case when date(case ' +
+        'when substr(trim(dtaven), 5, 1) = ''-'' then substr(trim(dtaven), 1, 10) ' +
+        'when substr(trim(dtaven), 3, 1) = ''/'' then substr(trim(dtaven), 7, 4) || ''-'' || ' +
+        'substr(trim(dtaven), 4, 2) || ''-'' || substr(trim(dtaven), 1, 2) ' +
+        'else trim(dtaven) end) < date(''now'', ''localtime'') then 1 else 0 end as vencido ' +
+        'from cr1 where cod_cliente = :p0 and trim(coalesce(dtarec, '''')) = '''' ' +
+        'order by dtaven, titulo, sequencia';
+      QBoletos.ParamByName('p0').AsString := Trim(ACodigo);
+      QBoletos.Open;
+      while not QBoletos.Eof do
+      begin
+        LDataVencimento := Trim(QBoletos.FieldByName('dtaven').AsString);
+        if (Length(LDataVencimento) >= 10) and (LDataVencimento[5] = '-') then
+          LDataVencimento := Copy(LDataVencimento, 9, 2) + '/' +
+            Copy(LDataVencimento, 6, 2) + '/' + Copy(LDataVencimento, 1, 4);
+        LValor := QBoletos.FieldByName('valor_aberto').AsCurrency;
+        LTituloSeq := Trim(QBoletos.FieldByName('titulo').AsString) + '-' +
+          QBoletos.FieldByName('sequencia').AsString;
+        LVencido := QBoletos.FieldByName('vencido').AsInteger = 1;
+
+        LItem := LvBoletosAbertos.Items.Add;
+        LItem.Text := LTituloSeq + ' | ' + Format('R$ %.2f', [LValor]) + sLineBreak +
+          'Vcto: ' + LDataVencimento;
+        LItem.Detail := '';
+        if LVencido then
+        begin
+          if Assigned(LItem.Objects.TextObject) then
+            LItem.Objects.TextObject.TextColor := TAlphaColor($FFFF0000);
+          if Assigned(LItem.Objects.DetailObject) then
+            LItem.Objects.DetailObject.TextColor := TAlphaColor($FFFF0000);
+        end;
+        QBoletos.Next;
+      end;
+    finally
+      QBoletos.Free;
+    end;
+
+    LvBoletosAbertos.ItemAppearance.ItemHeight := 30;
+    LAlturaLista := Max(30, LvBoletosAbertos.Items.Count * 30);
+    CardSituacao.Height := Max(72, 30 + LAlturaLista);
+    LvBoletosAbertos.SetBounds(20, 30, CardSituacao.Width - 40, LAlturaLista);
+  finally
+    LvBoletosAbertos.EndUpdate;
+  end;
+end;
 procedure TfrmPedido.CarregarSituacaoDoSqlite(const ACodigo: string);
 var
   Q: TFDQuery;
@@ -2904,7 +3175,7 @@ begin
     [System.UITypes.TMsgDlgBtn.mbYes, System.UITypes.TMsgDlgBtn.mbNo],
     System.UITypes.TMsgDlgBtn.mbNo,
     0,
-    procedure(const AResult: System.UITypes.TModalResult)
+    procedure(const AResult: TModalResult)
     begin
       if AResult = mrYes then
         ExcluirItemDigitado(LItemOrd);
@@ -3104,7 +3375,7 @@ begin
       '    select 1 ' +
       '      from vendas2 v2x ' +
       '      inner join vendas1 v1x on v2x.numdoc = v1x.numdoc ' +
-      '     where v1x.cod_cliente = v1.cod_cliente ' +
+      '     where v1x.cod_cliente = :p0 ' +
       '       and v2x.cod_produto = v2.cod_produto ' +
       '       and ( ' +
       '         date(coalesce(nullif(v1x.dta_emissao, ''''), nullif(v1x.dtadoc, ''''), nullif(v2x.dtadoc, ''''))) > date(coalesce(nullif(v1.dta_emissao, ''''), nullif(v1.dtadoc, ''''), nullif(v2.dtadoc, ''''))) ' +
@@ -3681,6 +3952,8 @@ begin
 
   CarregarSituacaoDoSqlite(FClienteCodigo);
   ApplyResponsiveLayout;
+  CarregarBoletos(FClienteCodigo);
+  ApplyResponsiveLayout;
   ListarUltimasCompras;
   CriarOutboundPedidoDraft;
   AtualizarContadorItensDigitados;
@@ -3822,6 +4095,8 @@ begin
 
     CarregarSituacaoDoSqlite(FClienteCodigo);
     ApplyResponsiveLayout;
+    CarregarBoletos(FClienteCodigo);
+    ApplyResponsiveLayout;
     ListarUltimasCompras;
     AtualizarContadorItensDigitados;
     if Assigned(TabMenu) and Assigned(TabCliente) then
@@ -3859,16 +4134,46 @@ begin
     [System.UITypes.TMsgDlgBtn.mbYes, System.UITypes.TMsgDlgBtn.mbNo],
     System.UITypes.TMsgDlgBtn.mbNo,
     0,
-    procedure(const AResult: System.UITypes.TModalResult)
+    procedure(const AResult: TModalResult)
     begin
       if AResult = mrYes then
       begin
-        CancelarPedidoAtual;
-        dmApp.ClearAppState('pedido');
-        FecharPedido;
+        if not PedidoDadosCompletos then
+          CancelarPedidoAtual;
+        dmApp.ClearAppState('');
+        Close;
       end;
     end
   );
+end;
+
+function TfrmPedido.ClienteTemBoletoVencido: Boolean;
+var
+  LQuery: TFDQuery;
+begin
+  Result := False;
+  if (codCliente <= 0) or (not Assigned(lbFormaPgto)) or
+     (Pos('BOLETO', UpperCase(lbFormaPgto.Text)) = 0) then
+    Exit;
+
+  LQuery := TFDQuery.Create(nil);
+  try
+    LQuery.Connection := dmApp.FDConnection;
+    LQuery.SQL.Text :=
+      'select count(*) as qtd from cr1 b ' +
+      'where b.cod_cliente = :p0 ' +
+      '  and trim(coalesce(b.dtarec, '''')) = '''' ' +
+      '  and date(case ' +
+      '    when substr(trim(b.dtaven), 5, 1) = ''-'' then substr(trim(b.dtaven), 1, 10) ' +
+      '    when substr(trim(b.dtaven), 3, 1) = ''/'' then substr(trim(b.dtaven), 7, 4) || ''-'' || ' +
+      '         substr(trim(b.dtaven), 4, 2) || ''-'' || substr(trim(b.dtaven), 1, 2) ' +
+      '    else trim(b.dtaven) end) < date(''now'', ''localtime'')';
+    LQuery.ParamByName('p0').AsInteger := codCliente;
+    LQuery.Open;
+    Result := (not LQuery.Eof) and (LQuery.FieldByName('qtd').AsInteger > 0);
+  finally
+    LQuery.Free;
+  end;
 end;
 
 procedure TfrmPedido.BtnPedidoClick(Sender: TObject);
@@ -3900,6 +4205,26 @@ begin
     Exit;
   end;
 
+  if ClienteTemBoletoVencido then
+  begin
+    TDialogServiceAsync.MessageDialog(
+      'Aviso: este cliente possui boletos vencidos. O pedido será gravado mesmo assim.',
+      System.UITypes.TMsgDlgType.mtWarning,
+      [System.UITypes.TMsgDlgBtn.mbOK],
+      System.UITypes.TMsgDlgBtn.mbOK,
+      0,
+      procedure(const AResult: TModalResult)
+      begin
+        ConcluirGravacao;
+      end);
+    Exit;
+  end;
+
+  ConcluirGravacao;
+end;
+
+procedure TfrmPedido.ConcluirGravacao;
+begin
   AtualizarOutboundPedido;
   dmApp.ClearAppState('pedido');
   TDialogServiceAsync.MessageDialog('Pedido gravado com sucesso.',
@@ -3907,7 +4232,7 @@ begin
     [System.UITypes.TMsgDlgBtn.mbOK],
     System.UITypes.TMsgDlgBtn.mbOK,
     0,
-    procedure(const AResult: System.UITypes.TModalResult)
+    procedure(const AResult: TModalResult)
     begin
       FecharPedido;
     end);

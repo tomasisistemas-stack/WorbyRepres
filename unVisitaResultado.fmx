@@ -1,0 +1,234 @@
+object frmVisitaResultado: TfrmVisitaResultado
+  Left = 0
+  Top = 0
+  Caption = 'Resultado da Visita'
+  ClientHeight = 720
+  ClientWidth = 400
+  FormFactor.Width = 320
+  FormFactor.Height = 480
+  FormFactor.Devices = [Desktop]
+  OnClose = FormClose
+  OnResize = FormResize
+  OnShow = FormShow
+  DesignerMasterStyle = 3
+  object LayoutRoot: TLayout
+    Align = Contents
+    Size.Width = 400.000000000000000000
+    Size.Height = 720.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 0
+    object BackgroundRect: TRectangle
+      Align = Contents
+      Fill.Color = xFFEEF7FF
+      Size.Width = 400.000000000000000000
+      Size.Height = 720.000000000000000000
+      Size.PlatformDefault = False
+      Stroke.Kind = None
+      object TopBar: TRectangle
+        Fill.Color = xFF4A90E2
+        Size.Width = 400.000000000000000000
+        Size.Height = 132.000000000000000000
+        Size.PlatformDefault = False
+        Stroke.Kind = None
+        object LbTitulo: TLabel
+          StyledSettings = []
+          Position.X = 30.000000000000000000
+          Position.Y = 56.000000000000000000
+          Size.Width = 340.000000000000000000
+          Size.Height = 38.000000000000000000
+          Size.PlatformDefault = False
+          TextSettings.Font.Size = 30.000000000000000000
+          TextSettings.FontColor = claWhite
+          Text = 'Resultado da Visita'
+        end
+        object LbSubtitulo: TLabel
+          StyledSettings = []
+          Position.X = 32.000000000000000000
+          Position.Y = 92.000000000000000000
+          Size.Width = 300.000000000000000000
+          Size.Height = 24.000000000000000000
+          Size.PlatformDefault = False
+          TextSettings.Font.Size = 16.000000000000000000
+          TextSettings.FontColor = claWhite
+          Text = 'Finalizacao obrigatoria'
+        end
+      end
+      object CardCliente: TRectangle
+        Fill.Color = claWhite
+        Position.X = 22.000000000000000000
+        Position.Y = 154.000000000000000000
+        Size.Width = 356.000000000000000000
+        Size.Height = 112.000000000000000000
+        Size.PlatformDefault = False
+        Stroke.Kind = None
+        XRadius = 22.000000000000000000
+        YRadius = 22.000000000000000000
+        object LbClienteTitulo: TLabel
+          StyledSettings = []
+          Position.X = 26.000000000000000000
+          Position.Y = 22.000000000000000000
+          Size.Width = 304.000000000000000000
+          Size.Height = 20.000000000000000000
+          Size.PlatformDefault = False
+          TextSettings.FontColor = xFF53637A
+          Text = 'Cliente'
+        end
+        object LbClienteNome: TLabel
+          StyledSettings = []
+          Position.X = 26.000000000000000000
+          Position.Y = 48.000000000000000000
+          Size.Width = 304.000000000000000000
+          Size.Height = 28.000000000000000000
+          Size.PlatformDefault = False
+          TextSettings.Font.Size = 17.000000000000000000
+          TextSettings.Font.StyleExt = {00070000000000000004000000}
+          Text = 'CLIENTE'
+        end
+        object LbTempoAtendimento: TLabel
+          StyledSettings = []
+          Position.X = 26.000000000000000000
+          Position.Y = 78.000000000000000000
+          Size.Width = 304.000000000000000000
+          Size.Height = 22.000000000000000000
+          Size.PlatformDefault = False
+          TextSettings.FontColor = xFF53637A
+          Text = 'Tempo em atendimento: 0 min'
+        end
+      end
+      object CardStatus: TRectangle
+        Fill.Color = claWhite
+        Position.X = 22.000000000000000000
+        Position.Y = 280.000000000000000000
+        Size.Width = 356.000000000000000000
+        Size.Height = 105.000000000000000000
+        Size.PlatformDefault = False
+        Stroke.Kind = None
+        XRadius = 22.000000000000000000
+        YRadius = 22.000000000000000000
+        object LbStatusTitulo: TLabel
+          StyledSettings = []
+          Position.X = 26.000000000000000000
+          Position.Y = 22.000000000000000000
+          Size.Width = 304.000000000000000000
+          Size.Height = 22.000000000000000000
+          Size.PlatformDefault = False
+          TextSettings.Font.Size = 14.000000000000000000
+          TextSettings.FontColor = xFF53637A
+          Text = 'Status'
+        end
+        object CbStatusVisita: TComboBox
+          Items.Strings = (
+            'Prospec'#195#167#195#163'o'
+            'Venda'
+            'Relacionamento'
+            'P'#195#179's-venda'
+            'Cobran'#195#167'a'
+            'Visita impossibilitada')
+          ItemIndex = 1
+          Position.X = 26.000000000000000000
+          Position.Y = 48.000000000000000000
+          Size.Width = 304.000000000000000000
+          Size.Height = 32.000000000000000000
+          Size.PlatformDefault = False
+          OnChange = CbStatusVisitaChange
+        end
+      end
+      object CardObs: TRectangle
+        Fill.Color = claWhite
+        Position.X = 22.000000000000000000
+        Position.Y = 398.000000000000000000
+        Size.Width = 356.000000000000000000
+        Size.Height = 182.000000000000000000
+        Size.PlatformDefault = False
+        Stroke.Kind = None
+        XRadius = 22.000000000000000000
+        YRadius = 22.000000000000000000
+        object LbObsTitulo: TLabel
+          StyledSettings = []
+          Position.X = 24.000000000000000000
+          Position.Y = 26.000000000000000000
+          Size.Width = 304.000000000000000000
+          Size.Height = 22.000000000000000000
+          Size.PlatformDefault = False
+          TextSettings.Font.Size = 14.000000000000000000
+          TextSettings.FontColor = xFF53637A
+          Text = 'Observacoes'
+        end
+        object MemoObs: TMemo
+          Touch.InteractiveGestures = [LongTap, DoubleTap]
+          DataDetectorTypes = []
+          Position.X = 26.000000000000000000
+          Position.Y = 56.000000000000000000
+          Size.Width = 304.000000000000000000
+          Size.Height = 105.000000000000000000
+          Size.PlatformDefault = False
+          TabOrder = 0
+          Viewport.Width = 304.000000000000000000
+          Viewport.Height = 105.000000000000000000
+        end
+      end
+      object lbottom: TLayout
+        Position.Y = 584.000000000000000000
+        Size.Width = 400.000000000000000000
+        Size.Height = 76.000000000000000000
+        Size.PlatformDefault = False
+        TabOrder = 0
+        object BtnCancelar: TRectangle
+          Fill.Color = xFFDDEAF8
+          Position.X = 20.000000000000000000
+          Position.Y = 10.000000000000000000
+          Size.Width = 164.000000000000000000
+          Size.Height = 44.000000000000000000
+          Size.PlatformDefault = False
+          Stroke.Kind = None
+          XRadius = 20.000000000000000000
+          YRadius = 20.000000000000000000
+          OnClick = BtnCancelarClick
+          object LayoutCancelar: TLayout
+            Align = Contents
+            Size.Width = 164.000000000000000000
+            Size.Height = 44.000000000000000000
+            Size.PlatformDefault = False
+            TabOrder = 0
+            object LbCancelar: TLabel
+              Align = Contents
+              StyledSettings = []
+              Size.Width = 164.000000000000000000
+              Size.Height = 44.000000000000000000
+              Size.PlatformDefault = False
+              TextSettings.Font.Size = 14.000000000000000000
+              TextSettings.FontColor = xFF2B5C9E
+              TextSettings.HorzAlign = Center
+              Text = 'Cancelar'
+              TabOrder = 0
+            end
+          end
+        end
+        object BtnSalvar: TRectangle
+          Fill.Color = xFF4A90E2
+          Position.X = 202.000000000000000000
+          Position.Y = 10.000000000000000000
+          Size.Width = 178.000000000000000000
+          Size.Height = 44.000000000000000000
+          Size.PlatformDefault = False
+          Stroke.Kind = None
+          XRadius = 20.000000000000000000
+          YRadius = 20.000000000000000000
+          OnClick = BtnSalvarClick
+          object LbSalvar: TLabel
+            Align = Contents
+            StyledSettings = []
+            Size.Width = 178.000000000000000000
+            Size.Height = 44.000000000000000000
+            Size.PlatformDefault = False
+            TextSettings.Font.Size = 15.000000000000000000
+            TextSettings.Font.StyleExt = {00070000000000000004000000}
+            TextSettings.FontColor = claWhite
+            TextSettings.HorzAlign = Center
+            Text = 'Salvar Visita'
+          end
+        end
+      end
+    end
+  end
+end
