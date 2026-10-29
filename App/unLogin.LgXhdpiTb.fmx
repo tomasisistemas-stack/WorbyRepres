@@ -19,8 +19,8 @@ inherited frmLogin_LgXhdpiTb: TfrmLogin_LgXhdpiTb
       end
     end
     inherited lbottom: TLayout
-      Position.Y = 707.000000000000000000
-      Size.Width = 480.000000000000000000
+      Position.Y = 657.000000000000000000
+      Size.Width = 470.000000000000000000
       inherited lySaidas: TLayout
         inherited rSaidas: TRectangle
           inherited ImSaidas: TImage
@@ -30,7 +30,7 @@ inherited frmLogin_LgXhdpiTb: TfrmLogin_LgXhdpiTb
         end
       end
       inherited lySair: TLayout
-        Position.X = 396.000000000000000000
+        Position.X = 413.000000000000000000
         inherited rSair: TRectangle
           inherited imSair: TImage
             MultiResBitmap.Height = 512

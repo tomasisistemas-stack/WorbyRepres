@@ -18,8 +18,8 @@ inherited frmLogin_NmXhdpiPh: TfrmLogin_NmXhdpiPh
       end
     end
     inherited lbottom: TLayout
-      Position.Y = 493.000000000000000000
-      Size.Width = 400.000000000000000000
+      Position.Y = 443.000000000000000000
+      Size.Width = 390.000000000000000000
       inherited lySaidas: TLayout
         inherited rSaidas: TRectangle
           inherited ImSaidas: TImage
@@ -29,7 +29,7 @@ inherited frmLogin_NmXhdpiPh: TfrmLogin_NmXhdpiPh
         end
       end
       inherited lySair: TLayout
-        Position.X = 316.000000000000000000
+        Position.X = 333.000000000000000000
         inherited rSair: TRectangle
           inherited imSair: TImage
             MultiResBitmap.Height = 512
